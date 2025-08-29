@@ -1,10 +1,55 @@
-# URL Shortener Starter
+# Transliterate - ASCII Name Transliteration Service
 
-This is an Encore starter for a URL Shortener. It has two API endpoints and a PostgreSQL database to store the URL IDs and retrieve the full URL given an ID.
+ASCII Name Transliteration Service - Converts multicultural names to ASCII-compatible structured JSON for legacy systems.
 
-## Build from scratch with a tutorial
+## Development Workflow
 
-If you prefer to built it yourself, check out the [tutorial](https://encore.dev/docs/go/tutorials/rest-api) to learn how to build this application from scratch.
+This project uses a feature branch workflow with squash merging and multiple deployment environments.
+
+### Branch Strategy
+
+- **`main`** - Production-ready code (deploys via Terraform to public cloud)
+- **`stage`** - Staging environment (deploys to Encore Cloud for testing)  
+- **`develop`** - Integration branch for features
+- **`feature/*`** - Individual feature development branches
+
+### Development Process
+
+1. **Create feature branch** from `develop`:
+   ```bash
+   git checkout develop
+   git pull origin develop
+   git checkout -b feature/your-feature-name
+   ```
+
+2. **Develop locally** using Encore:
+   ```bash
+   encore run
+   ```
+
+3. **Test locally** via Encore dashboard at [http://localhost:9400/](http://localhost:9400/)
+
+4. **Merge to develop** with squash:
+   ```bash
+   git checkout develop
+   git merge --squash feature/your-feature-name
+   git commit -m "feat: add your feature description"
+   git push origin develop
+   ```
+
+5. **Deploy to staging** for remote testing:
+   ```bash
+   git checkout stage
+   git merge develop
+   git push encore stage
+   ```
+
+6. **Deploy to production** when ready:
+   ```bash
+   git checkout main  
+   git merge stage
+   git push origin main  # Triggers Terraform deployment
+   ```
 
 ## Prerequisites 
 
@@ -17,85 +62,108 @@ If you prefer to built it yourself, check out the [tutorial](https://encore.dev/
 1. [Install Docker](https://docker.com)
 2. Start Docker
 
-## Create app
+## Local Development
 
-Create a local app from this template:
-
-```bash
-encore app create my-app-name --example=url-shortener
-```
-
-## Run app locally
-
-Before running your application, make sure you have Docker installed and running. Then run this command from your application's root folder:
+Start the development server:
 
 ```bash
 encore run
 ```
 
-## Using the API
+Open the Encore developer dashboard at [http://localhost:9400/](http://localhost:9400/) to:
+- View API traces and logs
+- See architecture diagram  
+- Browse API documentation
+- Monitor database queries
 
+## API Usage
 
-### url.shorten — Shortens a URL and adds it to the database
-
-```bash
-curl 'http://localhost:4000/url' -d '{"URL":"https://news.ycombinator.com"}'
-```
-
-### url.get — Gets a URL from the database using a short ID
-
-```bash
-curl 'http://127.0.0.1:4000/url/:id'
-```
-
-## Open the developer dashboard
-
-While `encore run` is running, open [http://localhost:9400/](http://localhost:9400/) to access Encore's [local developer dashboard](https://encore.dev/docs/go/observability/dev-dash).
-
-Here you can see traces for all your requests, view your architecture diagram, and see API docs in the Service Catalog.
-
-## Connecting to databases
-
-You can connect to your databases via psql shell:
+### POST /transliterate — Transliterate text between scripts
 
 ```bash
-encore db shell <database-name> --env=local --superuser
+curl 'http://localhost:4000/transliterate' \
+  -H 'Content-Type: application/json' \
+  -d '{
+    "text": "Привет",
+    "input_script": "cyrillic",
+    "output_script": "latin",
+    "input_locale": "ru-RU"
+  }'
 ```
 
-Learn more in the [CLI docs](https://encore.dev/docs/go/cli/cli-reference#database-management).
-
-## Deployment
-
-### Self-hosting
-
-See the [self-hosting instructions](https://encore.dev/docs/go/self-host/docker-build) for how to use `encore build docker` to create a Docker image and configure it.
-
-### Encore Cloud Platform
-
-Deploy your application to a free staging environment in Encore's development cloud using `git push encore`:
+### GET /transliterate/:id — Retrieve stored transliteration
 
 ```bash
-git add -A .
-git commit -m 'Commit message'
-git push encore
+curl 'http://localhost:4000/transliterate/uuid-here'
 ```
 
-You can also open your app in the [Cloud Dashboard](https://app.encore.dev) to integrate with GitHub, or connect your AWS/GCP account, enabling Encore to automatically handle cloud deployments for you.
+### POST /transliterate/:id/feedback — Submit user feedback
 
-## Link to GitHub
+```bash
+curl 'http://localhost:4000/transliterate/uuid-here/feedback' \
+  -H 'Content-Type: application/json' \
+  -d '{
+    "suggested_output": "Better transliteration",
+    "feedback_type": "correction",
+    "user_context": "More accurate pronunciation"
+  }'
+```
 
-Follow these steps to link your app to GitHub:
+## Database Access
 
-1. Create a GitHub repo, commit and push the app.
-2. Open your app in the [Cloud Dashboard](https://app.encore.dev).
-3. Go to **Settings ➔ GitHub** and click on **Link app to GitHub** to link your app to GitHub and select the repo you just created.
-4. To configure Encore to automatically trigger deploys when you push to a specific branch name, go to the **Overview** page for your intended environment. Click on **Settings** and then in the section **Branch Push** configure the **Branch name** and hit **Save**.
-5. Commit and push a change to GitHub to trigger a deploy.
+Connect to your local database:
 
-[Learn more in the docs](https://encore.dev/docs/platform/integrations/github)
+```bash
+encore db shell transliterate --env=local --superuser
+```
+
+View database schema and data through the Encore dashboard's database section.
 
 ## Testing
 
+Run all tests:
 ```bash
 encore test ./...
 ```
+
+Run with coverage:
+```bash
+encore test -cover ./...
+```
+
+## Deployment Environments
+
+### Local Development
+- Use `encore run` for immediate feedback
+- Database automatically provisioned
+- Hot reload on code changes
+
+### Staging (Encore Cloud)
+- Deployed via `git push encore stage`
+- Full cloud environment for integration testing
+- Accessible via Encore Cloud dashboard
+
+### Production (Public Cloud)
+- Deployed via Terraform when pushing to `main`
+- Infrastructure as code for scalability
+- Monitoring and alerting configured
+
+## Project Structure
+
+```
+/
+├── api/                     # Encore backend
+│   ├── encore.app          # App configuration
+│   └── services/           # Service modules
+│       └── transliterate/  # Transliteration service
+├── frontend/               # Frontend application (future)
+├── docs/                   # Documentation
+├── scripts/                # Build and deployment scripts
+└── terraform/              # Production infrastructure (generated)
+```
+
+## Getting Help
+
+- **Encore Documentation**: https://encore.dev/docs
+- **API Dashboard**: http://localhost:9400/ (when running locally)
+- **Cloud Dashboard**: https://app.encore.dev
