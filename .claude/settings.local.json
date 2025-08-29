@@ -3,7 +3,13 @@
     "allow": [
       "Bash(mkdir:*)",
       "Bash(git branch:*)",
-      "Bash(git checkout:*)"
+      "Bash(git checkout:*)",
+      "Bash(encore test:*)",
+      "Bash(cat:*)",
+      "Bash(go mod:*)",
+      "Bash(git add:*)",
+      "Bash(git merge:*)",
+      "Bash(git commit:*)"
     ],
     "deny": [],
     "ask": []
