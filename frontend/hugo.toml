@@ -1,0 +1,15 @@
+baseURL = "http://localhost:4002"
+languageCode = "en-au"
+title = "ASCII Name Transliteration Service"
+publishDir = "dist"
+
+[build]
+  writeStats = true
+
+[params]
+  useTypeScript = true
+
+[markup]
+  [markup.goldmark]
+    [markup.goldmark.renderer]
+      unsafe = true

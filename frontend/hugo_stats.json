@@ -1,0 +1,55 @@
+{
+  "htmlElements": {
+    "tags": [
+      "a",
+      "body",
+      "button",
+      "div",
+      "footer",
+      "form",
+      "h1",
+      "h3",
+      "head",
+      "header",
+      "html",
+      "input",
+      "label",
+      "link",
+      "meta",
+      "option",
+      "p",
+      "script",
+      "select",
+      "strong",
+      "textarea",
+      "title"
+    ],
+    "classes": [
+      "button",
+      "button-secondary",
+      "card",
+      "container",
+      "form-group",
+      "form-row",
+      "script-examples",
+      "spinner",
+      "subtitle"
+    ],
+    "ids": [
+      "error",
+      "feedback-form",
+      "feedback-section",
+      "feedback_type",
+      "input_script",
+      "loading",
+      "output_script",
+      "result",
+      "submit-button",
+      "success",
+      "suggested_output",
+      "text",
+      "transliteration-form",
+      "user_context"
+    ]
+  }
+}

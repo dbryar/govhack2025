@@ -9,7 +9,12 @@
       "Bash(go mod:*)",
       "Bash(git add:*)",
       "Bash(git merge:*)",
-      "Bash(git commit:*)"
+      "Bash(git commit:*)",
+      "Bash(git push:*)",
+      "Bash(curl:*)",
+      "Bash(find:*)",
+      "Bash(bun install:*)",
+      "Bash(hugo:*)"
     ],
     "deny": [],
     "ask": []
