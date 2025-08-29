@@ -196,13 +196,12 @@ var userName = "John"
 ├── docs/              # Project documentation
 │   ├── technical.md   # This file (coding standards)
 │   └── architecture.md # Infrastructure and framework
-├── src/               # Source code root
-│   ├── api/           # Encore backend application
-│   │   ├── services/  # Encore services
-│   │   ├── modules/   # Shared business logic
-│   │   └── lib/       # Utilities
-│   └── frontend/      # Vue/Hugo frontend
-│       └── src/       # Frontend source code
+├── api/               # Encore backend application
+│   ├── services/      # Encore services
+│   ├── modules/       # Shared business logic
+│   └── lib/           # Utilities
+├── frontend/          # Vue/Hugo frontend
+│   └── src/           # Frontend source code
 ├── scripts/           # Build and automation
 ├── node_modules/      # Hoisted to root (gitignored)
 ├── package.json       # Root package.json

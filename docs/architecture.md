@@ -48,28 +48,27 @@ Choose **one** backend language per project:
 ├── docs/                    # Documentation
 │   ├── architecture.md     # This file
 │   └── technical.md         # Coding standards
-├── src/                     # Source code root
-│   ├── api/                 # Encore backend application
-│   │   ├── encore.app       # Encore app configuration
-│   │   ├── services/        # Encore services
-│   │   │   ├── users/       # User service
-│   │   │   │   ├── users.go/ts
-│   │   │   │   └── users_test.go/ts
-│   │   │   └── auth/        # Auth service
-│   │   ├── modules/         # Shared business logic
-│   │   ├── lib/             # Shared utilities
-│   │   └── migrations/      # Database migrations
-│   └── frontend/            # Frontend application
-│       ├── index.html       # Entry point
-│       ├── src/             # Frontend source
-│       │   ├── main.ts      # Vue app entry
-│       │   ├── pages/       # Page components
-│       │   ├── components/  # Reusable components
-│       │   ├── services/    # API client services
-│       │   ├── stores/      # Pinia stores
-│       │   └── utils/       # Utilities
-│       ├── public/          # Static assets
-│       └── vite.config.ts   # Vite configuration
+├── api/                 # Encore backend application
+│   ├── encore.app       # Encore app configuration
+│   ├── services/        # Encore services
+│   │   ├── users/       # User service
+│   │   │   ├── users.go/ts
+│   │   │   └── users_test.go/ts
+│   │   └── auth/        # Auth service
+│   ├── modules/         # Shared business logic
+│   ├── lib/             # Shared utilities
+│   └── migrations/      # Database migrations
+├── frontend/            # Frontend application
+│   ├── index.html       # Entry point
+│   ├── src/             # Frontend source
+│   │   ├── main.ts      # Vue app entry
+│   │   ├── pages/       # Page components
+│   │   ├── components/  # Reusable components
+│   │   ├── services/    # API client services
+│   │   ├── stores/      # Pinia stores
+│   │   └── utils/       # Utilities
+│   ├── public/          # Static assets
+│   └── vite.config.ts   # Vite configuration
 ├── scripts/                 # Build and deployment scripts
 ├── terraform/               # Production Terraform (exported)
 ├── .gitignore              # Include node_modules

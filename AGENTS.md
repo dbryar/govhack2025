@@ -29,10 +29,10 @@ encore run
 go test ./...
 
 # Run specific service tests
-go test ./src/api/services/user/...
+go test ./api/services/user/...
 
 # Generate TypeScript client from Encore API
-encore gen client ./src/frontend/src/services/client --lang=typescript
+encore gen client ./frontend/src/services/client --lang=typescript
 
 # Check Encore compilation
 encore check
@@ -121,7 +121,7 @@ netlify deploy --prod --dir=hugo/public
 ### Project Structure
 
 ```
-/src
+/
 ├── api/                    # Encore backend
 │   ├── services/          # Individual services
 │   │   └── user/         
@@ -216,10 +216,10 @@ encore dashboard
 #### Add a new service
 ```bash
 # Create service directory
-mkdir -p src/api/services/newservice
+mkdir -p api/services/newservice
 
 # Create service file
-touch src/api/services/newservice/newservice.go
+touch api/services/newservice/newservice.go
 
 # Add Encore annotations and implement
 ```
