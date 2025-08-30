@@ -20,7 +20,9 @@
       "Bash(encore logs:*)",
       "Bash(bun run:*)",
       "Read(/Users/daniel.bryar/nexus/**)",
-      "Bash(go build:*)"
+      "Bash(go build:*)",
+      "Bash(go test:*)",
+      "Bash(go run:*)"
     ],
     "deny": [],
     "ask": []

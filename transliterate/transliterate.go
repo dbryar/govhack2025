@@ -266,6 +266,10 @@ func detectScript(text string) string {
 				scriptCounts["cyrillic"]++
 			case r >= 0x4E00 && r <= 0x9FFF: // CJK Ideographs
 				scriptCounts["chinese"]++
+			case r >= 0x3040 && r <= 0x309F: // Hiragana
+				scriptCounts["japanese"]++
+			case r >= 0x30A0 && r <= 0x30FF: // Katakana
+				scriptCounts["japanese"]++
 			case r >= 0x0600 && r <= 0x06FF: // Arabic
 				scriptCounts["arabic"]++
 			case r >= 0x0370 && r <= 0x03FF: // Greek
@@ -443,13 +447,40 @@ func transliterateCyrillicToLatin(r rune) string {
 
 // transliterateChineseToLatin provides basic Chinese character mappings
 func transliterateChineseToLatin(r rune) string {
-	// Basic common Chinese characters - in practice would use proper Pinyin lookup
+	// Comprehensive Chinese character mappings including names and common characters
 	chineseMap := map[rune]string{
+		// Common characters
 		'你': "ni", '好': "hao", '是': "shi", '的': "de", '我': "wo",
 		'他': "ta", '她': "ta", '们': "men", '有': "you", '在': "zai",
 		'了': "le", '不': "bu", '就': "jiu", '人': "ren", '都': "dou",
 		'一': "yi", '二': "er", '三': "san", '四': "si", '五': "wu",
 		'六': "liu", '七': "qi", '八': "ba", '九': "jiu", '十': "shi",
+		
+		// Common surname characters
+		'李': "Li", '王': "Wang", '张': "Zhang", '刘': "Liu", '陈': "Chen",
+		'杨': "Yang", '赵': "Zhao", '黄': "Huang", '周': "Zhou", '吴': "Wu",
+		'徐': "Xu", '孙': "Sun", '胡': "Hu", '朱': "Zhu", '高': "Gao",
+		'林': "Lin", '何': "He", '郭': "Guo", '马': "Ma", '罗': "Luo",
+		'梁': "Liang", '宋': "Song", '郑': "Zheng", '谢': "Xie", '韩': "Han",
+		'唐': "Tang", '冯': "Feng", '于': "Yu", '董': "Dong", '萧': "Xiao",
+		'程': "Cheng", '曹': "Cao", '袁': "Yuan", '邓': "Deng", '许': "Xu",
+		'傅': "Fu", '沈': "Shen", '曾': "Zeng", '彭': "Peng", '吕': "Lu",
+		
+		// Common given name characters 
+		'小': "Xiao", '大': "Da", '中': "Zhong", '文': "Wen", '明': "Ming",
+		'华': "Hua", '建': "Jian", '国': "Guo", '民': "Min", '伟': "Wei",
+		'龍': "Long", '龙': "Long", '凤': "Feng", '鳳': "Feng", '玉': "Yu",
+		'金': "Jin", '春': "Chun", '红': "Hong", '军': "Jun", '强': "Qiang",
+		'云': "Yun", '平': "Ping", '志': "Zhi", '刚': "Gang", '勇': "Yong",
+		'磊': "Lei", '娜': "Na", '静': "Jing", '丽': "Li", '敏': "Min",
+		'秀': "Xiu", '英': "Ying", '芳': "Fang", '燕': "Yan", '雪': "Xue",
+		'琴': "Qin", '梅': "Mei", '莉': "Li", '兰': "Lan", '翠': "Cui",
+		
+		// Additional useful characters
+		'东': "Dong", '南': "Nan", '西': "Xi", '北': "Bei", '上': "Shang",
+		'下': "Xia", '左': "Zuo", '右': "You", '前': "Qian", '后': "Hou",
+		'新': "Xin", '老': "Lao", '长': "Chang", '短': "Duan",
+		'低': "Di", '快': "Kuai", '慢': "Man", '早': "Zao", '晚': "Wan",
 	}
 
 	if mapped, exists := chineseMap[r]; exists {
@@ -495,23 +526,34 @@ func transliterateGreekToLatin(r rune) string {
 
 // approximateToASCII converts Unicode characters to closest ASCII equivalents
 func approximateToASCII(r rune) string {
-	// Handle accented characters
+	// Handle accented characters and diacritics
 	asciiMap := map[rune]string{
-		// Accented vowels
-		'á': "a", 'à': "a", 'â': "a", 'ã': "a", 'ä': "a", 'å': "a", 'ā': "a",
+		// Basic accented vowels
+		'á': "a", 'à': "a", 'â': "a", 'ã': "a", 'ā': "a",
 		'é': "e", 'è': "e", 'ê': "e", 'ë': "e", 'ē': "e",
 		'í': "i", 'ì': "i", 'î': "i", 'ï': "i", 'ī': "i",
-		'ó': "o", 'ò': "o", 'ô': "o", 'õ': "o", 'ö': "o", 'ø': "o", 'ō': "o",
-		'ú': "u", 'ù': "u", 'û': "u", 'ü': "u", 'ū': "u",
+		'ó': "o", 'ò': "o", 'ô': "o", 'õ': "o", 'ō': "o",
+		'ú': "u", 'ù': "u", 'û': "u", 'ū': "u",
 		// Uppercase versions
-		'Á': "A", 'À': "A", 'Â': "A", 'Ã': "A", 'Ä': "A", 'Å': "A", 'Ā': "A",
+		'Á': "A", 'À': "A", 'Â': "A", 'Ã': "A", 'Ā': "A",
 		'É': "E", 'È': "E", 'Ê': "E", 'Ë': "E", 'Ē': "E",
 		'Í': "I", 'Ì': "I", 'Î': "I", 'Ï': "I", 'Ī': "I",
-		'Ó': "O", 'Ò': "O", 'Ô': "O", 'Õ': "O", 'Ö': "O", 'Ø': "O", 'Ō': "O",
-		'Ú': "U", 'Ù': "U", 'Û': "U", 'Ü': "U", 'Ū': "U",
+		'Ó': "O", 'Ò': "O", 'Ô': "O", 'Õ': "O", 'Ō': "O",
+		'Ú': "U", 'Ù': "U", 'Û': "U", 'Ū': "U",
+		
+		// Vietnamese diacritics (key ones)
+		'ă': "a", 'Ă': "A", 'đ': "d", 'Đ': "D",
+		'ư': "u", 'Ư': "U", 'ơ': "o", 'Ơ': "O",
+		
 		// Other common characters
 		'ç': "c", 'Ç': "C", 'ñ': "n", 'Ñ': "N",
 		'ß': "ss", 'æ': "ae", 'Æ': "AE", 'œ': "oe", 'Œ': "OE",
+		
+		// German umlauts 
+		'ä': "ae", 'Ä': "AE", 'ö': "oe", 'Ö': "OE", 'ü': "ue", 'Ü': "UE",
+		
+		// Scandinavian
+		'å': "aa", 'Å': "AA", 'ø': "oe", 'Ø': "OE",
 	}
 
 	if mapped, exists := asciiMap[r]; exists {
@@ -635,7 +677,7 @@ func validateTransliterationRequest(req *TransliterationRequest) error {
 	// Validate script names
 	validScripts := map[string]bool{
 		"latin": true, "ascii": true, "cyrillic": true,
-		"chinese": true, "arabic": true, "greek": true,
+		"chinese": true, "japanese": true, "arabic": true, "greek": true,
 		"vietnamese": true, "indonesian": true, "malayalam": true,
 	}
 
@@ -687,6 +729,7 @@ func isSupportedScriptPair(inputScript, outputScript string) bool {
 		"ascii":      {"latin": true, "ascii": true},
 		"cyrillic":   {"latin": true, "ascii": true},
 		"chinese":    {"latin": true, "ascii": true},
+		"japanese":   {"latin": true, "ascii": true},
 		"arabic":     {"latin": true, "ascii": true},
 		"greek":      {"latin": true, "ascii": true},
 		"vietnamese": {"latin": true, "ascii": true},
@@ -839,22 +882,35 @@ func removeTitles(text string, titles []string) string {
 	if len(titles) == 0 {
 		return text
 	}
-
-	result := text
+	
+	// Convert to words for better matching
+	words := strings.Fields(text)
+	var resultWords []string
+	
+	// Create a set of title patterns to check against
+	titleSet := make(map[string]bool)
 	for _, title := range titles {
-		patterns := []string{
-			strings.ToUpper(title),
-			strings.ToLower(title),
-			strings.Title(strings.ToLower(title)),
+		titleSet[strings.ToUpper(strings.Trim(title, "."))] = true
+	}
+	
+	// Also add common variations
+	titleVariations := map[string]bool{
+		"DR": true, "DOCTOR": true, "PROF": true, "PROFESSOR": true,
+		"MR": true, "MRS": true, "MS": true, "MISS": true,
+		"SIR": true, "DAME": true, "LORD": true, "LADY": true,
+		"HON": true, "HONOURABLE": true, "REV": true, "REVEREND": true,
+	}
+	
+	for _, word := range words {
+		cleanWord := strings.ToUpper(strings.Trim(word, ".,"))
+		// Skip if this word is a title
+		if titleSet[cleanWord] || titleVariations[cleanWord] {
+			continue
 		}
-
-		for _, pattern := range patterns {
-			result = strings.ReplaceAll(result, pattern+".", "")
-			result = strings.ReplaceAll(result, pattern+" ", "")
-		}
+		resultWords = append(resultWords, word)
 	}
 
-	return strings.TrimSpace(result)
+	return strings.TrimSpace(strings.Join(resultWords, " "))
 }
 
 // formatTitle formats title for display
