@@ -14,7 +14,10 @@
       "Bash(curl:*)",
       "Bash(find:*)",
       "Bash(bun install:*)",
-      "Bash(hugo:*)"
+      "Bash(hugo:*)",
+      "WebFetch(domain:app.encore.cloud)",
+      "Bash(encore app:*)",
+      "Bash(encore logs:*)"
     ],
     "deny": [],
     "ask": []
