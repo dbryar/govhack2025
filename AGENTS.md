@@ -17,7 +17,41 @@ curl -L https://encore.dev/install.sh | bash
 encore app create --example=hello-world
 ```
 
-### Development Commands
+### Development Workflow
+
+#### Feature Branch Development
+
+```bash
+# 1. Create feature branch from develop
+git checkout develop
+git pull origin develop
+git checkout -b feature/your-feature-name
+
+# 2. Develop locally with Encore
+encore run
+
+# 3. Test via dashboard at http://localhost:9400/
+
+# 4. Merge to develop with squash
+git checkout develop
+git merge --squash feature/your-feature-name
+git commit -m "feat: add your feature description"
+git push origin develop
+```
+
+#### Deployment Commands
+
+```bash
+# Deploy to staging (Encore Cloud)
+git checkout stage
+git merge develop
+git push encore stage
+
+# Deploy to production (triggers Terraform)
+git checkout main
+git merge stage
+git push origin main
+```
 
 #### Backend (Go/Encore)
 
@@ -26,10 +60,10 @@ encore app create --example=hello-world
 encore run
 
 # Run backend tests
-go test ./...
+encore test ./...
 
 # Run specific service tests
-go test ./api/services/user/...
+encore test ./api/services/transliterate
 
 # Generate TypeScript client from Encore API
 encore gen client ./frontend/src/services/client --lang=typescript
@@ -94,28 +128,44 @@ Example:
 
 ### Build & Deployment
 
-#### Development
+#### Local Development
 ```bash
-# Full build
-bun run build
+# Run local server with hot reload
+encore run
 
-# Backend only
+# Test locally
+encore test ./...
+
+# Build for validation
 encore build
-
-# Frontend only
-bunx vite build
 ```
 
-#### Production
+#### Staging Deployment (Encore Cloud)
 ```bash
-# Export Terraform configuration
+# Deploy to staging environment
+git checkout stage
+git merge develop
+git push encore stage
+
+# View staging deployment
+open https://app.encore.dev
+```
+
+#### Production Deployment
+```bash
+# Export Terraform for production infrastructure
 encore terraform generate --env=production ./terraform
 
-# Deploy to Encore cloud
-encore deploy production
+# Deploy via GitHub Actions (automatic on main push)
+git checkout main
+git merge stage
+git push origin main
 
-# Deploy Hugo to Netlify/Vercel
-netlify deploy --prod --dir=hugo/public
+# Manual Terraform deployment (if needed)
+cd terraform
+terraform init
+terraform plan
+terraform apply
 ```
 
 ### Project Structure
@@ -165,20 +215,30 @@ export const transliterate = api<{input: string}, TransliterateResponse>(
 
 ```bash
 # Run migrations (Encore handles automatically)
-# Place migration files in: src/api/services/[service]/migrations/
+# Place migration files in: api/services/[service]/migrations/
 
-# Access database console
-encore db shell [service-name]
+# Access local database console
+encore db shell transliterate --env=local --superuser
+
+# Access staging database console
+encore db shell transliterate --env=staging
+
+# View database in dashboard
+open http://localhost:9400/
 ```
 
 ### Environment & Secrets
 
 ```bash
-# Set secrets for Encore
+# Set secrets for staging
+encore secret set --env=staging API_KEY
+
+# Set secrets for production
 encore secret set --env=production API_KEY
 encore secret set --env=production DB_PASSWORD
 
 # List secrets
+encore secret list --env=staging
 encore secret list --env=production
 ```
 
@@ -201,14 +261,18 @@ bunx tsc --noEmit
 ### Debugging
 
 ```bash
-# View Encore logs
+# View local logs
 encore logs --env=local
 
+# View staging logs
+encore logs --env=staging
+
 # View specific service logs
-encore logs --env=local --service=user
+encore logs --env=local --service=transliterate
 
 # Debug with Encore dashboard
-encore dashboard
+open http://localhost:9400/  # Local
+open https://app.encore.dev  # Cloud environments
 ```
 
 ### Common Tasks
@@ -218,10 +282,12 @@ encore dashboard
 # Create service directory
 mkdir -p api/services/newservice
 
-# Create service file
+# Create service file and migrations
 touch api/services/newservice/newservice.go
+mkdir -p api/services/newservice/migrations
 
 # Add Encore annotations and implement
+# Test locally with: encore run
 ```
 
 #### Add a new Hugo page

@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html lang="en-au">
+<head>
+	<meta name="generator" content="Hugo 0.145.0"><script src="/livereload.js?mindelay=10&amp;v=2&amp;port=1313&amp;path=livereload" data-no-instant defer></script>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Home | ASCII Name Transliteration Service</title>
+  <meta name="description" content="Convert names and text from various scripts (Cyrillic, Chinese, Arabic, Greek) to ASCII for system compatibility and data processing.">
+  
+  
+  <link rel="stylesheet" href="http://localhost:1313/css/main.min.css">
+  
+  
+  <script src="http://localhost:1313/ts/main.min.js" defer></script>
+</head>
+<body>
+  <div class="container">
+    
+<header>
+  <h1>ASCII Name Transliteration Service</h1>
+  <p class="subtitle">Convert names and text from various scripts to ASCII for system compatibility</p>
+</header>
+
+<div class="card">
+  <form id="transliteration-form">
+    <div class="form-group">
+      <label for="text">Text to Transliterate</label>
+      <textarea id="text" name="text" placeholder="Enter text in any script (Cyrillic, Chinese, Arabic, Greek, Latin)" required></textarea>
+      <div class="script-examples">
+        <strong>Examples:</strong> 
+        Cyrillic: Привет мир | 
+        Chinese: 你好世界 | 
+        Arabic: مرحبا بالعالم | 
+        Greek: Γεια σας κόσμος
+      </div>
+    </div>
+
+    <div class="form-row">
+      <div class="form-group">
+        <label for="input_script">Input Script (optional)</label>
+        <select id="input_script" name="input_script">
+          <option value="auto">Auto-detect</option>
+          <option value="cyrillic">Cyrillic</option>
+          <option value="chinese">Chinese</option>
+          <option value="arabic">Arabic</option>
+          <option value="greek">Greek</option>
+          <option value="latin">Latin</option>
+        </select>
+      </div>
+
+      <div class="form-group">
+        <label for="output_script">Output Script</label>
+        <select id="output_script" name="output_script" required>
+          <option value="ascii">ASCII (recommended)</option>
+          <option value="latin">Latin</option>
+        </select>
+      </div>
+    </div>
+
+    <button type="submit" id="submit-button" class="button">Transliterate</button>
+  </form>
+
+  <div id="loading">
+    <div class="spinner"></div>
+    Processing transliteration...
+  </div>
+
+  <div id="error"></div>
+  <div id="success"></div>
+
+  <div id="result"></div>
+</div>
+
+<div id="feedback-section" class="card">
+  <h3>Provide Feedback</h3>
+  <p>Help us improve the transliteration quality by providing feedback on the results.</p>
+  
+  <form id="feedback-form">
+    <div class="form-group">
+      <label for="suggested_output">Suggested Correction</label>
+      <input type="text" id="suggested_output" name="suggested_output" placeholder="Enter your suggested improvement" required>
+    </div>
+
+    <div class="form-row">
+      <div class="form-group">
+        <label for="feedback_type">Feedback Type</label>
+        <select id="feedback_type" name="feedback_type" required>
+          <option value="correction">Correction</option>
+          <option value="improvement">Improvement</option>
+          <option value="alternative">Alternative</option>
+        </select>
+      </div>
+
+      <div class="form-group">
+        <label for="user_context">Context (optional)</label>
+        <input type="text" id="user_context" name="user_context" placeholder="Additional context or explanation">
+      </div>
+    </div>
+
+    <button type="submit" class="button button-secondary">Submit Feedback</button>
+  </form>
+</div>
+
+<footer>
+  <p>ASCII Name Transliteration Service | 
+    <a href="https://github.com/govhack-competition">GovHack 2025</a> | 
+    Built with <a href="https://encore.dev">Encore.dev</a> & <a href="https://gohugo.io">Hugo</a>
+  </p>
+</footer>
+
+  </div>
+</body>
+</html>

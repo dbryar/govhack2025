@@ -1,0 +1,20 @@
+<!DOCTYPE html>
+<html lang="{{ .Site.LanguageCode }}">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{{ .Title }} | {{ .Site.Title }}</title>
+  <meta name="description" content="Convert names and text from various scripts (Cyrillic, Chinese, Arabic, Greek) to ASCII for system compatibility and data processing.">
+  
+  {{ $css := resources.Get "css/main.css" | resources.Minify }}
+  <link rel="stylesheet" href="{{ $css.Permalink }}">
+  
+  {{ $js := resources.Get "ts/main.ts" | js.Build | resources.Minify }}
+  <script src="{{ $js.Permalink }}" defer></script>
+</head>
+<body>
+  <div class="container">
+    {{ block "main" . }}{{ end }}
+  </div>
+</body>
+</html>

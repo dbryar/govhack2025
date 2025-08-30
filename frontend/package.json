@@ -1,0 +1,13 @@
+{
+  "name": "transliterate-frontend",
+  "version": "1.0.0",
+  "description": "ASCII Name Transliteration Service Frontend",
+  "scripts": {
+    "build": "hugo --minify",
+    "dev": "hugo server --buildDrafts --buildFuture",
+    "clean": "rm -rf dist public"
+  },
+  "devDependencies": {
+    "typescript": "^5.0.0"
+  }
+}
