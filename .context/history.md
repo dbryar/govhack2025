@@ -143,3 +143,49 @@ Detailed implementation notes in: `.context/scratchpad/name-formatting.md`
 
 ### Next Steps
 Ready for production deployment and integration with government systems. The core functionality now addresses all documented naming issues from the ABC News investigation and project requirements.
+
+## 2025-08-30T13:25:00Z - Fix Transliteration Contract Finalisation
+
+### Request
+User requested to finalise the feature branch `fix-transliteration-contract` and update context files according to .claude/instructions.md. Tasks included checking git status, updating context files, force pushing changes, and checking for develop/stage reversion needs.
+
+### Task Summary
+Completed finalisation of the `fix-transliteration-contract` branch with comprehensive transliteration improvements focused on API contract compliance.
+
+### Outcome Report
+
+#### Major Changes Implemented
+- **Enhanced Transliteration Logic**: Streamlined character mappings for better ASCII compliance
+- **Japanese Script Support**: Added proper validation and script pair support for Japanese transliteration
+- **Improved Title Handling**: Rewrote title removal from string-based to word-based matching to prevent titles appearing as first/middle names
+- **ASCII Contract Compliance**: Focused on removing Unicode characters and ensuring proper transliteration output
+
+#### Technical Implementation Details
+- **File Modified**: `transliterate/transliterate.go`
+  - Removed problematic Japanese to Latin mappings (lines 422-425)
+  - Cleaned up Chinese character mappings (removed inconsistent entries)
+  - Streamlined ASCII approximation mappings (removed redundant German/Vietnamese characters)
+  - Added Japanese script to validation set (line 680)
+  - Added Japanese to supported script pairs (line 732)
+  - Complete rewrite of `removeTitles()` function with word-based matching
+  - Added comprehensive title variations (DR, DOCTOR, PROF, MR, MRS, MS, SIR, etc.)
+
+#### Minor Updates Applied
+- Created task-specific scratchpad: `.context/scratchpad/fix-transliteration-contract.md`
+- Updated context documentation per .claude/instructions.md requirements
+- Maintained proper git workflow with feature branch methodology
+
+#### Overall Improvements
+- **API Contract Compliance**: Enhanced removal of Unicode/UTF-16 characters
+- **Title Detection**: Prevents professional titles from appearing as personal names
+- **Script Support**: Comprehensive support for major world scripts with proper validation
+- **Code Quality**: Simplified and more maintainable transliteration mappings
+
+#### Git Status
+- Branch: `fix-transliteration-contract` (1 commit ahead of origin)
+- Latest commit: `cd136cd - Fix major transliteration issues and improve API contract compliance`
+- Working tree: Clean, no uncommitted changes
+
+#### Reference
+- **Scratchpad**: `scratchpad/fix-transliteration-contract.md`
+- **Branch Status**: Ready for force push to remote and potential merge
