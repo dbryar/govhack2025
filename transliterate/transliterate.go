@@ -1180,7 +1180,7 @@ func ServeApp(w http.ResponseWriter, req *http.Request) {
 	}
 
 	// Build the file path to the Hugo dist directory
-	filePath := filepath.Join("frontend/dist", path)
+	filePath := filepath.Join("../frontend/dist", path)
 
 	// Try to serve the requested file
 	http.ServeFile(w, req, filePath)
