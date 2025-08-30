@@ -65,7 +65,7 @@ type FeedbackRequest struct {
 
 // Transliterate converts text from one script to another
 //
-//encore:api public method=POST path=/api/transliterate
+//encore:api public method=POST path=/transliterate
 func Transliterate(ctx context.Context, req *TransliterationRequest) (*TransliterationResponse, error) {
 	// Validate input
 	if err := validateTransliterationRequest(req); err != nil {
@@ -139,7 +139,7 @@ func Transliterate(ctx context.Context, req *TransliterationRequest) (*Translite
 
 // GetTransliteration retrieves a previously stored transliteration by ID
 //
-//encore:api public method=GET path=/api/transliterate/:id
+//encore:api public method=GET path=/transliterate/:id
 func GetTransliteration(ctx context.Context, id string) (*TransliterationResponse, error) {
 	// Validate UUID format
 	if !isValidUUID(id) {
@@ -174,7 +174,7 @@ func GetTransliteration(ctx context.Context, id string) (*TransliterationRespons
 
 // SubmitFeedback allows users to provide feedback on transliteration results
 //
-//encore:api public method=POST path=/api/transliterate/:id/feedback
+//encore:api public method=POST path=/transliterate/:id/feedback
 func SubmitFeedback(ctx context.Context, id string, req *FeedbackRequest) error {
 	// Validate feedback request
 	if err := validateFeedbackRequest(req); err != nil {

@@ -7,14 +7,21 @@ ASCII Name Transliteration Service - Converts multicultural names to ASCII-compa
 ### Project Setup
 
 ```bash
-# Install dependencies
-bun install
-
 # Install Encore CLI (if not installed)
 curl -L https://encore.dev/install.sh | bash
 
-# Initialize Encore app
-encore app create --example=hello-world
+# Install Hugo (required for frontend)
+# macOS: brew install hugo
+# Linux: sudo snap install hugo  
+# Windows: choco install hugo-extended
+
+# Build the project (frontend + backend)
+./build.sh
+
+# Or build manually:
+cd frontend && hugo --minify --baseURL /app/ && cd ..
+rm -rf transliterate/dist && cp -r frontend/dist transliterate/dist
+encore build
 ```
 
 ### Development Workflow
@@ -53,41 +60,40 @@ git merge stage
 git push origin main
 ```
 
-#### Backend (Go/Encore)
+#### Full Stack Development
 
 ```bash
-# Run local development server
+# Build everything (run this first!)
+./build.sh
+
+# Run local development server  
 encore run
+
+# Access the application:
+# - API: http://localhost:4100/
+# - Frontend: http://localhost:4100/app/
+# - Encore Dashboard: http://localhost:9400/
 
 # Run backend tests
 encore test ./...
 
-# Run specific service tests
-encore test ./api/services/transliterate
-
-# Generate TypeScript client from Encore API
-encore gen client ./frontend/src/services/client --lang=typescript
-
 # Check Encore compilation
 encore check
-
-# View Encore dashboard
-encore dashboard
 ```
 
-#### Frontend (Hugo)
+#### Frontend Development (Hugo + TypeScript)
 
 ```bash
-# Start Hugo development server
-hugo server -D
+# Development server (Hugo only - for frontend work)
+cd frontend && hugo server -D
 
-# Build Hugo static site
-hugo --minify
+# Build frontend only
+cd frontend && hugo --minify --baseURL /app/
 
-# Build TypeScript assets for Hugo
-bun run build:ts
-# or
-esbuild hugo/assets/ts/main.ts --bundle --outdir=hugo/static/js
+# Copy to service for embedding
+rm -rf transliterate/dist && cp -r frontend/dist transliterate/dist
+
+# The TypeScript is automatically compiled by Hugo
 ```
 
 ### Testing Conventions
@@ -130,18 +136,24 @@ Example:
 
 #### Local Development
 ```bash
+# Build everything first (required!)
+./build.sh
+
 # Run local server with hot reload
 encore run
 
 # Test locally
 encore test ./...
 
-# Build for validation
+# Build for validation (backend only)
 encore build
 ```
 
 #### Staging Deployment (Encore Cloud)
 ```bash
+# Build frontend before deploying
+./build.sh
+
 # Deploy to staging environment
 git checkout stage
 git merge develop
@@ -172,19 +184,23 @@ terraform apply
 
 ```
 /
-├── api/                    # Encore backend
-│   ├── services/          # Individual services
-│   │   └── user/         
-│   │       ├── user.go    # Service implementation
-│   │       └── user_test.go
-│   ├── lib/              # Shared libraries
-│   └── modules/          # Business logic modules
-└── frontend/             # Hugo static site
-    ├── assets/
-    │   └── ts/          # TypeScript files
-    ├── content/         # Markdown content
-    ├── layouts/         # HTML templates
-    └── static/          # Static assets
+├── encore.app              # App configuration
+├── transliterate/         # Main service
+│   ├── transliterate.go   # Service implementation
+│   ├── transliterate_test.go
+│   ├── migrations/        # Database migrations
+│   └── dist/             # Embedded frontend files (generated)
+├── frontend/             # Hugo static site source
+│   ├── assets/           # TypeScript/SCSS source files
+│   │   └── ts/          # TypeScript files
+│   ├── content/         # Markdown content
+│   ├── layouts/         # HTML templates
+│   ├── static/          # Static assets
+│   └── dist/           # Generated static files (Hugo output)
+├── build.sh             # Build script
+├── docs/               # Documentation
+├── README.md           # Main documentation
+└── AGENTS.md          # Agent-specific documentation
 ```
 
 ### API Development
@@ -192,23 +208,35 @@ terraform apply
 #### Encore Service Pattern (Go)
 
 ```go
-//encore:api public method=GET path=/transliterate
-func Transliterate(ctx context.Context, input string) (*TransliterateResponse, error) {
+//encore:api public method=POST path=/transliterate
+func Transliterate(ctx context.Context, req *TransliterationRequest) (*TransliterationResponse, error) {
     // Implementation
+}
+
+//encore:api public method=GET path=/transliterate/:id
+func GetTransliteration(ctx context.Context, id string) (*TransliterationResponse, error) {
+    // Implementation
+}
+
+//encore:api public raw method=GET path=/app/*path
+func ServeApp(w http.ResponseWriter, req *http.Request) {
+    // Frontend serving with embedded files
 }
 ```
 
-#### Encore Service Pattern (TypeScript)
+#### Frontend API Integration (TypeScript)
 
 ```typescript
-import { api } from "encore.dev/api";
-
-export const transliterate = api<{input: string}, TransliterateResponse>(
-    { method: "GET", path: "/transliterate" },
-    async ({ input }) => {
-        // Implementation
-    }
-);
+class TransliterationService {
+  async transliterate(request: TransliterationRequest): Promise<TransliterationResponse> {
+    const response = await fetch(`/transliterate`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(request),
+    });
+    return await response.json();
+  }
+}
 ```
 
 ### Database Operations

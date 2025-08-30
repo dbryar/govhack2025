@@ -57,10 +57,40 @@ This project uses a feature branch workflow with squash merging and multiple dep
 - **macOS:** `brew install encoredev/tap/encore`
 - **Linux:** `curl -L https://encore.dev/install.sh | bash`
 - **Windows:** `iwr https://encore.dev/install.ps1 | iex`
+
+**Install Hugo:**
+- **macOS:** `brew install hugo`
+- **Linux:** `sudo snap install hugo`
+- **Windows:** `choco install hugo-extended`
+- **Or download from:** https://gohugo.io/getting-started/installing/
   
 **Docker:**
 1. [Install Docker](https://docker.com)
 2. Start Docker
+
+## Building the Project
+
+The project includes both a backend service (Go) and a frontend (Hugo static site). You need to build both:
+
+**Option 1: Use the build script (recommended)**
+```bash
+./build.sh
+```
+
+**Option 2: Build manually**
+```bash
+# Build frontend
+cd frontend
+hugo --minify --baseURL /app/
+cd ..
+
+# Copy frontend to service directory for embedding
+rm -rf transliterate/dist
+cp -r frontend/dist transliterate/dist
+
+# Build backend
+encore build
+```
 
 ## Local Development
 
@@ -69,6 +99,11 @@ Start the development server:
 ```bash
 encore run
 ```
+
+The application includes:
+- **Backend API**: http://localhost:4100/
+- **Frontend**: http://localhost:4100/app/
+- **Encore Dashboard**: http://localhost:9400/
 
 Open the Encore developer dashboard at [http://localhost:9400/](http://localhost:9400/) to:
 - View API traces and logs
@@ -148,18 +183,32 @@ encore test -cover ./...
 - Infrastructure as code for scalability
 - Monitoring and alerting configured
 
+## Deployment
+
+The frontend is embedded into the Go binary using Go's `embed` package. When deploying to Encore Cloud or other environments, make sure to:
+
+1. **Build the frontend first**: `./build.sh` or follow the manual build steps
+2. **Deploy**: `encore deploy` or push to your deployment branch
+
+The embedded frontend will be served at `/app/` and all static assets will be included in the deployment.
+
 ## Project Structure
 
 ```
 /
-├── api/                     # Encore backend
-│   ├── encore.app          # App configuration
-│   └── services/           # Service modules
-│       └── transliterate/  # Transliteration service
-├── frontend/               # Frontend application (future)
-├── docs/                   # Documentation
-├── scripts/                # Build and deployment scripts
-└── terraform/              # Production infrastructure (generated)
+├── encore.app               # App configuration
+├── transliterate/          # Main service
+│   ├── transliterate.go    # Service implementation
+│   ├── migrations/         # Database migrations
+│   └── dist/              # Embedded frontend files
+├── frontend/               # Hugo frontend source
+│   ├── assets/            # TypeScript/SCSS source
+│   ├── layouts/           # HTML templates
+│   ├── content/           # Content files
+│   └── dist/             # Generated static files
+├── build.sh               # Build script
+├── docs/                  # Documentation
+└── README.md              # This file
 ```
 
 ## Getting Help
