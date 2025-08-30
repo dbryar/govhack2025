@@ -418,11 +418,6 @@ func applyBuiltinRules(r rune, inputScript, outputScript string) string {
 	if inputScript == "greek" && outputScript == "latin" {
 		return transliterateGreekToLatin(r)
 	}
-	
-	// Japanese to Latin mappings
-	if inputScript == "japanese" && (outputScript == "latin" || outputScript == "ascii") {
-		return transliterateJapaneseToLatin(r)
-	}
 
 	return ""
 }
@@ -484,7 +479,7 @@ func transliterateChineseToLatin(r rune) string {
 		// Additional useful characters
 		'东': "Dong", '南': "Nan", '西': "Xi", '北': "Bei", '上': "Shang",
 		'下': "Xia", '左': "Zuo", '右': "You", '前': "Qian", '后': "Hou",
-		'新': "Xin", '老': "Lao", '长': "Chang", '短': "Duan", '高': "Gao",
+		'新': "Xin", '老': "Lao", '长': "Chang", '短': "Duan",
 		'低': "Di", '快': "Kuai", '慢': "Man", '早': "Zao", '晚': "Wan",
 	}
 
@@ -534,38 +529,27 @@ func approximateToASCII(r rune) string {
 	// Handle accented characters and diacritics
 	asciiMap := map[rune]string{
 		// Basic accented vowels
-		'á': "a", 'à': "a", 'â': "a", 'ã': "a", 'ä': "a", 'å': "a", 'ā': "a",
+		'á': "a", 'à': "a", 'â': "a", 'ã': "a", 'ā': "a",
 		'é': "e", 'è': "e", 'ê': "e", 'ë': "e", 'ē': "e",
 		'í': "i", 'ì': "i", 'î': "i", 'ï': "i", 'ī': "i",
-		'ó': "o", 'ò': "o", 'ô': "o", 'õ': "o", 'ö': "o", 'ø': "o", 'ō': "o",
-		'ú': "u", 'ù': "u", 'û': "u", 'ü': "u", 'ū': "u",
+		'ó': "o", 'ò': "o", 'ô': "o", 'õ': "o", 'ō': "o",
+		'ú': "u", 'ù': "u", 'û': "u", 'ū': "u",
 		// Uppercase versions
-		'Á': "A", 'À': "A", 'Â': "A", 'Ã': "A", 'Ä': "A", 'Å': "A", 'Ā': "A",
+		'Á': "A", 'À': "A", 'Â': "A", 'Ã': "A", 'Ā': "A",
 		'É': "E", 'È': "E", 'Ê': "E", 'Ë': "E", 'Ē': "E",
 		'Í': "I", 'Ì': "I", 'Î': "I", 'Ï': "I", 'Ī': "I",
-		'Ó': "O", 'Ò': "O", 'Ô': "O", 'Õ': "O", 'Ö': "O", 'Ø': "O", 'Ō': "O",
-		'Ú': "U", 'Ù': "U", 'Û': "U", 'Ü': "U", 'Ū': "U",
+		'Ó': "O", 'Ò': "O", 'Ô': "O", 'Õ': "O", 'Ō': "O",
+		'Ú': "U", 'Ù': "U", 'Û': "U", 'Ū': "U",
 		
-		// Vietnamese diacritics - comprehensive set
-		'ă': "a", 'Ă': "A", 'â': "a", 'Â': "A",
-		'ắ': "a", 'Ắ': "A", 'ằ': "a", 'Ằ': "A", 'ẳ': "a", 'Ẳ': "A", 'ẵ': "a", 'Ẵ': "A", 'ặ': "a", 'Ặ': "A",
-		'ấ': "a", 'Ấ': "A", 'ầ': "a", 'Ầ': "A", 'ẩ': "a", 'Ẩ': "A", 'ẫ': "a", 'Ẫ': "A", 'ậ': "a", 'Ậ': "A",
-		'đ': "d", 'Đ': "D",
-		'ê': "e", 'Ê': "E",
-		'ế': "e", 'Ế': "E", 'ề': "e", 'Ề': "E", 'ể': "e", 'Ể': "E", 'ễ': "e", 'Ễ': "E", 'ệ': "e", 'Ệ': "E",
-		'í': "i", 'Í': "I", 'ì': "i", 'Ì': "I", 'ỉ': "i", 'Ỉ': "I", 'ĩ': "i", 'Ĩ': "I", 'ị': "i", 'Ị': "I",
-		'ô': "o", 'Ô': "O", 'ơ': "o", 'Ơ': "O",
-		'ố': "o", 'Ố': "O", 'ồ': "o", 'Ồ': "O", 'ổ': "o", 'Ổ': "O", 'ỗ': "o", 'Ỗ': "O", 'ộ': "o", 'Ộ': "O",
-		'ớ': "o", 'Ớ': "O", 'ờ': "o", 'Ờ': "O", 'ở': "o", 'Ở': "O", 'ỡ': "o", 'Ỡ': "O", 'ợ': "o", 'Ợ': "O",
-		'ư': "u", 'Ư': "U",
-		'ứ': "u", 'Ứ': "U", 'ừ': "u", 'Ừ': "U", 'ử': "u", 'Ử': "U", 'ữ': "u", 'Ữ': "U", 'ự': "u", 'Ự': "U",
-		'ý': "y", 'Ý': "Y", 'ỳ': "y", 'Ỳ': "Y", 'ỷ': "y", 'Ỷ': "Y", 'ỹ': "y", 'Ỹ': "Y", 'ỵ': "y", 'Ỵ': "Y",
+		// Vietnamese diacritics (key ones)
+		'ă': "a", 'Ă': "A", 'đ': "d", 'Đ': "D",
+		'ư': "u", 'Ư': "U", 'ơ': "o", 'Ơ': "O",
 		
 		// Other common characters
 		'ç': "c", 'Ç': "C", 'ñ': "n", 'Ñ': "N",
 		'ß': "ss", 'æ': "ae", 'Æ': "AE", 'œ': "oe", 'Œ': "OE",
 		
-		// German umlauts (more explicit)
+		// German umlauts 
 		'ä': "ae", 'Ä': "AE", 'ö': "oe", 'Ö': "OE", 'ü': "ue", 'Ü': "UE",
 		
 		// Scandinavian
@@ -693,7 +677,7 @@ func validateTransliterationRequest(req *TransliterationRequest) error {
 	// Validate script names
 	validScripts := map[string]bool{
 		"latin": true, "ascii": true, "cyrillic": true,
-		"chinese": true, "arabic": true, "greek": true,
+		"chinese": true, "japanese": true, "arabic": true, "greek": true,
 		"vietnamese": true, "indonesian": true, "malayalam": true,
 	}
 
@@ -745,6 +729,7 @@ func isSupportedScriptPair(inputScript, outputScript string) bool {
 		"ascii":      {"latin": true, "ascii": true},
 		"cyrillic":   {"latin": true, "ascii": true},
 		"chinese":    {"latin": true, "ascii": true},
+		"japanese":   {"latin": true, "ascii": true},
 		"arabic":     {"latin": true, "ascii": true},
 		"greek":      {"latin": true, "ascii": true},
 		"vietnamese": {"latin": true, "ascii": true},
@@ -897,22 +882,35 @@ func removeTitles(text string, titles []string) string {
 	if len(titles) == 0 {
 		return text
 	}
-
-	result := text
+	
+	// Convert to words for better matching
+	words := strings.Fields(text)
+	var resultWords []string
+	
+	// Create a set of title patterns to check against
+	titleSet := make(map[string]bool)
 	for _, title := range titles {
-		patterns := []string{
-			strings.ToUpper(title),
-			strings.ToLower(title),
-			strings.Title(strings.ToLower(title)),
+		titleSet[strings.ToUpper(strings.Trim(title, "."))] = true
+	}
+	
+	// Also add common variations
+	titleVariations := map[string]bool{
+		"DR": true, "DOCTOR": true, "PROF": true, "PROFESSOR": true,
+		"MR": true, "MRS": true, "MS": true, "MISS": true,
+		"SIR": true, "DAME": true, "LORD": true, "LADY": true,
+		"HON": true, "HONOURABLE": true, "REV": true, "REVEREND": true,
+	}
+	
+	for _, word := range words {
+		cleanWord := strings.ToUpper(strings.Trim(word, ".,"))
+		// Skip if this word is a title
+		if titleSet[cleanWord] || titleVariations[cleanWord] {
+			continue
 		}
-
-		for _, pattern := range patterns {
-			result = strings.ReplaceAll(result, pattern+".", "")
-			result = strings.ReplaceAll(result, pattern+" ", "")
-		}
+		resultWords = append(resultWords, word)
 	}
 
-	return strings.TrimSpace(result)
+	return strings.TrimSpace(strings.Join(resultWords, " "))
 }
 
 // formatTitle formats title for display
