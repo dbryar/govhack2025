@@ -78,7 +78,8 @@ class TransliterationApp {
   private currentResult: TransliterationResponse | null = null;
 
   constructor() {
-    this.service = new TransliterationService();
+    // Use staging API endpoint
+    this.service = new TransliterationService('https://staging-transliterate-5dsi.encr.app');
     this.initializeEventListeners();
   }
 
@@ -155,23 +156,27 @@ class TransliterationApp {
     if (resultDiv) {
       resultDiv.innerHTML = `
         <h3>Transliteration Result</h3>
-        <div class="result-item">
-          <strong>Input:</strong> ${this.escapeHtml(result.input_text)}
-        </div>
-        <div class="result-item">
-          <strong>Output:</strong> ${this.escapeHtml(result.output_text)}
-        </div>
-        <div class="result-item">
-          <strong>Input Script:</strong> ${this.escapeHtml(result.input_script)}
-        </div>
-        <div class="result-item">
-          <strong>Output Script:</strong> ${this.escapeHtml(result.output_script)}
-        </div>
-        ${result.confidence_score ? `<div class="result-item">
-          <strong>Confidence:</strong> ${(result.confidence_score * 100).toFixed(1)}%
-        </div>` : ''}
-        <div class="result-item">
-          <strong>ID:</strong> <code>${result.id}</code>
+        <div class="result-display">
+          <div class="user-result">
+            <h4>Your Result</h4>
+            <div class="result-item">
+              <strong>Input:</strong> ${this.escapeHtml(result.input_text)}
+            </div>
+            <div class="result-item">
+              <strong>Output:</strong> <span class="output-text">${this.escapeHtml(result.output_text)}</span>
+            </div>
+            <div class="result-item">
+              <strong>Detected Script:</strong> ${this.escapeHtml(result.input_script)}
+            </div>
+            ${result.confidence_score ? `<div class="result-item">
+              <strong>Confidence:</strong> <span class="confidence">${(result.confidence_score * 100).toFixed(1)}%</span>
+            </div>` : ''}
+          </div>
+          
+          <div class="json-result">
+            <h4>JSON Response (for judging)</h4>
+            <pre><code>${JSON.stringify(result, null, 2)}</code></pre>
+          </div>
         </div>
       `;
       resultDiv.style.display = 'block';

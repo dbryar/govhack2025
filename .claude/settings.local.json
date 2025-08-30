@@ -17,7 +17,8 @@
       "Bash(hugo:*)",
       "WebFetch(domain:app.encore.cloud)",
       "Bash(encore app:*)",
-      "Bash(encore logs:*)"
+      "Bash(encore logs:*)",
+      "Bash(bun run:*)"
     ],
     "deny": [],
     "ask": []
