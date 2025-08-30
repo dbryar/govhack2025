@@ -27,7 +27,7 @@ type TransliterationRequest struct {
 // NameStructure represents parsed name components
 type NameStructure struct {
 	Family    string   `json:"family"`              // Family/surname in UPPERCASE
-	First     string   `json:"first"`               // Given/first name in Title Case  
+	First     string   `json:"first"`               // Given/first name in Title Case
 	Middle    []string `json:"middle,omitempty"`    // Middle names/patronymics
 	Titles    []string `json:"titles,omitempty"`    // Extracted titles (Dr, Prof, etc)
 	FullASCII string   `json:"full_ascii"`          // Complete formatted ASCII name
@@ -95,11 +95,11 @@ func Transliterate(ctx context.Context, req *TransliterationRequest) (*Translite
 		if cached.Gender == nil {
 			cached.Gender = inferGender(req.Text, cached.OutputText, inputScript)
 		}
-		
+
 		// Update usage count
 		_, updateErr := db.Exec(ctx, `
-			UPDATE transliterations 
-			SET usage_count = usage_count + 1, updated_at = NOW() 
+			UPDATE transliterations
+			SET usage_count = usage_count + 1, updated_at = NOW()
 			WHERE id = $1
 		`, cached.ID)
 		if updateErr != nil {
@@ -113,22 +113,22 @@ func Transliterate(ctx context.Context, req *TransliterationRequest) (*Translite
 	if err != nil {
 		return nil, fmt.Errorf("transliteration failed: %w", err)
 	}
-	
+
 	// Calculate confidence score
 	confidenceScore := calculateConfidence(req.Text, outputText, inputScript, req.OutputScript)
 
 	// Parse name structure from transliterated text
 	nameStructure := parseName(req.Text, outputText, inputScript)
-	
+
 	// Infer gender from name and cultural markers
 	genderInference := inferGender(req.Text, outputText, inputScript)
-	
+
 	// Store the result
 	result, err := storeTransliteration(ctx, req.Text, outputText, inputScript, req.OutputScript, req.InputLocale, confidenceScore)
 	if err != nil {
 		return nil, fmt.Errorf("failed to store transliteration: %w", err)
 	}
-	
+
 	// Add structured name parsing and gender inference to response
 	result.Name = nameStructure
 	result.Gender = genderInference
@@ -150,11 +150,11 @@ func GetTransliteration(ctx context.Context, id string) (*TransliterationRespons
 
 	err := db.QueryRow(ctx, `
 		SELECT id, input_text, output_text, input_script, output_script, input_locale, confidence_score
-		FROM transliterations 
+		FROM transliterations
 		WHERE id = $1
-	`, id).Scan(&result.ID, &result.InputText, &result.OutputText, &result.InputScript, 
+	`, id).Scan(&result.ID, &result.InputText, &result.OutputText, &result.InputScript,
 		&result.OutputScript, &inputLocale, &result.ConfidenceScore)
-	
+
 	if err == sql.ErrNoRows {
 		return nil, errors.New("transliteration not found")
 	}
@@ -163,11 +163,11 @@ func GetTransliteration(ctx context.Context, id string) (*TransliterationRespons
 	}
 
 	result.InputLocale = inputLocale
-	
+
 	// Add name parsing and gender inference for retrieved records
 	result.Name = parseName(result.InputText, result.OutputText, result.InputScript)
 	result.Gender = inferGender(result.InputText, result.OutputText, result.InputScript)
-	
+
 	return &result, nil
 }
 
@@ -207,13 +207,13 @@ func getCachedTransliteration(ctx context.Context, inputText, inputScript, outpu
 
 	err := db.QueryRow(ctx, `
 		SELECT id, input_text, output_text, input_script, output_script, input_locale, confidence_score
-		FROM transliterations 
-		WHERE input_text = $1 AND input_script = $2 AND output_script = $3 
+		FROM transliterations
+		WHERE input_text = $1 AND input_script = $2 AND output_script = $3
 		AND ($4::text IS NULL OR input_locale = $4)
 		ORDER BY usage_count DESC, updated_at DESC
 		LIMIT 1
 	`, inputText, inputScript, outputScript, inputLocale).Scan(
-		&result.ID, &result.InputText, &result.OutputText, 
+		&result.ID, &result.InputText, &result.OutputText,
 		&result.InputScript, &result.OutputScript, &cachedInputLocale, &result.ConfidenceScore)
 
 	if err != nil {
@@ -303,25 +303,25 @@ func detectScript(text string) string {
 // performTransliteration converts text using character mappings and fallback rules
 func performTransliteration(text, inputScript, outputScript string, inputLocale *string) string {
 	result := strings.Builder{}
-	
+
 	// Process text character by character
 	for _, r := range text {
 		sourceChar := string(r)
-		
+
 		// First try database lookup
 		mapped := getCharacterMapping(sourceChar, inputScript, outputScript, inputLocale)
 		if mapped != "" {
 			result.WriteString(mapped)
 			continue
 		}
-		
+
 		// Apply built-in transliteration rules
 		builtinMapped := applyBuiltinRules(r, inputScript, outputScript)
 		if builtinMapped != "" {
 			result.WriteString(builtinMapped)
 			continue
 		}
-		
+
 		// Fallback: ASCII approximation or keep original
 		if outputScript == "ascii" {
 			asciiApprox := approximateToASCII(r)
@@ -330,28 +330,28 @@ func performTransliteration(text, inputScript, outputScript string, inputLocale 
 			result.WriteRune(r)
 		}
 	}
-	
+
 	return result.String()
 }
 
 // getCharacterMapping retrieves character mapping from database
 func getCharacterMapping(sourceChar, sourceScript, targetScript string, locale *string) string {
 	var targetChar string
-	
+
 	// Query character mappings table for exact match
 	err := db.QueryRow(context.Background(), `
-		SELECT target_char 
-		FROM character_mappings 
-		WHERE source_char = $1 
-			AND source_script = $2 
+		SELECT target_char
+		FROM character_mappings
+		WHERE source_char = $1
+			AND source_script = $2
 			AND target_script = $3
 			AND ($4::text IS NULL OR locale = $4 OR locale IS NULL)
-		ORDER BY 
+		ORDER BY
 			CASE WHEN locale = $4 THEN 1 ELSE 2 END,
 			frequency_weight DESC
 		LIMIT 1
 	`, sourceChar, sourceScript, targetScript, locale).Scan(&targetChar)
-	
+
 	if err == sql.ErrNoRows {
 		return "" // No mapping found
 	}
@@ -359,28 +359,28 @@ func getCharacterMapping(sourceChar, sourceScript, targetScript string, locale *
 		// Log error but don't fail transliteration
 		return ""
 	}
-	
+
 	return targetChar
 }
 
 // calculateConfidence computes a confidence score based on multiple factors
 func calculateConfidence(inputText, outputText, inputScript, outputScript string) float64 {
 	baseConfidence := 0.50 // Conservative baseline
-	
+
 	// Script compatibility scoring
 	scriptBonus := calculateScriptCompatibility(inputScript, outputScript)
 	baseConfidence += scriptBonus
-	
+
 	// Character coverage scoring
 	coverageBonus := calculateCharacterCoverage(inputText, outputText)
 	baseConfidence += coverageBonus
-	
+
 	// Length preservation bonus
 	lengthRatio := float64(len(outputText)) / float64(len(inputText))
 	if lengthRatio >= 0.5 && lengthRatio <= 2.0 {
 		baseConfidence += 0.1 // Reasonable length preservation
 	}
-	
+
 	// Ensure confidence stays within bounds
 	if baseConfidence > 1.0 {
 		baseConfidence = 1.0
@@ -388,7 +388,7 @@ func calculateConfidence(inputText, outputText, inputScript, outputScript string
 	if baseConfidence < 0.1 {
 		baseConfidence = 0.1
 	}
-	
+
 	return baseConfidence
 }
 
@@ -398,22 +398,22 @@ func applyBuiltinRules(r rune, inputScript, outputScript string) string {
 	if inputScript == "cyrillic" && outputScript == "latin" {
 		return transliterateCyrillicToLatin(r)
 	}
-	
+
 	// Chinese character approximations
 	if inputScript == "chinese" && (outputScript == "latin" || outputScript == "ascii") {
 		return transliterateChineseToLatin(r)
 	}
-	
+
 	// Arabic to Latin mappings
 	if inputScript == "arabic" && outputScript == "latin" {
 		return transliterateArabicToLatin(r)
 	}
-	
+
 	// Greek to Latin mappings
 	if inputScript == "greek" && outputScript == "latin" {
 		return transliterateGreekToLatin(r)
 	}
-	
+
 	return ""
 }
 
@@ -433,7 +433,7 @@ func transliterateCyrillicToLatin(r rune) string {
 		'ф': "f", 'х': "kh", 'ц': "ts", 'ч': "ch", 'ш': "sh", 'щ': "shch",
 		'ъ': "", 'ы': "y", 'ь': "", 'э': "e", 'ю': "yu", 'я': "ya",
 	}
-	
+
 	if mapped, exists := cyrillicMap[r]; exists {
 		return mapped
 	}
@@ -450,7 +450,7 @@ func transliterateChineseToLatin(r rune) string {
 		'一': "yi", '二': "er", '三': "san", '四': "si", '五': "wu",
 		'六': "liu", '七': "qi", '八': "ba", '九': "jiu", '十': "shi",
 	}
-	
+
 	if mapped, exists := chineseMap[r]; exists {
 		return mapped
 	}
@@ -466,7 +466,7 @@ func transliterateArabicToLatin(r rune) string {
 		'غ': "gh", 'ف': "f", 'ق': "q", 'ك': "k", 'ل': "l", 'م': "m",
 		'ن': "n", 'ه': "h", 'و': "w", 'ي': "y",
 	}
-	
+
 	if mapped, exists := arabicMap[r]; exists {
 		return mapped
 	}
@@ -485,7 +485,7 @@ func transliterateGreekToLatin(r rune) string {
 		'ν': "n", 'ξ': "x", 'ο': "o", 'π': "p", 'ρ': "r", 'σ': "s", 'ς': "s",
 		'τ': "t", 'υ': "y", 'φ': "ph", 'χ': "ch", 'ψ': "ps", 'ω': "o",
 	}
-	
+
 	if mapped, exists := greekMap[r]; exists {
 		return mapped
 	}
@@ -512,16 +512,16 @@ func approximateToASCII(r rune) string {
 		'ç': "c", 'Ç': "C", 'ñ': "n", 'Ñ': "N",
 		'ß': "ss", 'æ': "ae", 'Æ': "AE", 'œ': "oe", 'Œ': "OE",
 	}
-	
+
 	if mapped, exists := asciiMap[r]; exists {
 		return mapped
 	}
-	
+
 	// If it's already ASCII, return as-is
 	if r < 128 {
 		return string(r)
 	}
-	
+
 	// For other characters, try to approximate based on Unicode category
 	if unicode.IsLetter(r) {
 		return "?" // Unknown letter
@@ -535,7 +535,7 @@ func approximateToASCII(r rune) string {
 	if unicode.IsPunct(r) {
 		return "."
 	}
-	
+
 	return "" // Skip other characters
 }
 
@@ -546,19 +546,19 @@ func calculateScriptCompatibility(inputScript, outputScript string) float64 {
 		"latin": {"ascii": true},
 		"ascii": {"latin": true},
 	}
-	
+
 	// Medium compatibility pairs
 	mediumCompatibility := map[string]map[string]bool{
 		"cyrillic": {"latin": true, "ascii": true},
 		"greek":    {"latin": true, "ascii": true},
 	}
-	
+
 	// Low compatibility pairs (complex scripts)
 	lowCompatibility := map[string]map[string]bool{
 		"chinese": {"latin": true, "ascii": true},
 		"arabic":  {"latin": true, "ascii": true},
 	}
-	
+
 	if highCompatibility[inputScript] != nil && highCompatibility[inputScript][outputScript] {
 		return 0.3
 	}
@@ -568,7 +568,7 @@ func calculateScriptCompatibility(inputScript, outputScript string) float64 {
 	if lowCompatibility[inputScript] != nil && lowCompatibility[inputScript][outputScript] {
 		return 0.1
 	}
-	
+
 	return 0.0 // Unknown or unsupported pairing
 }
 
@@ -577,22 +577,22 @@ func calculateCharacterCoverage(inputText, outputText string) float64 {
 	// Count non-whitespace characters
 	inputChars := countNonWhitespaceChars(inputText)
 	outputChars := countNonWhitespaceChars(outputText)
-	
+
 	if inputChars == 0 {
 		return 0.0
 	}
-	
+
 	// Penalise outputs that are too short (lost information)
 	if outputChars == 0 {
 		return -0.2
 	}
-	
+
 	// Bonus for reasonable coverage
 	coverageRatio := float64(outputChars) / float64(inputChars)
 	if coverageRatio >= 0.5 && coverageRatio <= 1.5 {
 		return 0.1
 	}
-	
+
 	return 0.0
 }
 
@@ -614,43 +614,43 @@ func validateTransliterationRequest(req *TransliterationRequest) error {
 	if req == nil {
 		return errors.New("request cannot be nil")
 	}
-	
+
 	if strings.TrimSpace(req.Text) == "" {
 		return errors.New("text cannot be empty")
 	}
-	
+
 	if len(req.Text) > 10000 { // Reasonable limit
 		return errors.New("text too long (maximum 10,000 characters)")
 	}
-	
+
 	if !utf8.ValidString(req.Text) {
 		return errors.New("text contains invalid UTF-8 sequences")
 	}
-	
+
 	if req.OutputScript == "" {
 		return errors.New("output_script is required")
 	}
-	
+
 	// Validate script names
 	validScripts := map[string]bool{
-		"latin": true, "ascii": true, "cyrillic": true, 
+		"latin": true, "ascii": true, "cyrillic": true,
 		"chinese": true, "arabic": true, "greek": true,
 		"vietnamese": true, "indonesian": true, "malayalam": true,
 	}
-	
+
 	if req.InputScript != "" && !validScripts[req.InputScript] {
 		return fmt.Errorf("unsupported input script: %s", req.InputScript)
 	}
-	
+
 	if !validScripts[req.OutputScript] {
 		return fmt.Errorf("unsupported output script: %s", req.OutputScript)
 	}
-	
+
 	// Validate locale format if provided
 	if req.InputLocale != nil && !isValidLocale(*req.InputLocale) {
 		return fmt.Errorf("invalid locale format: %s", *req.InputLocale)
 	}
-	
+
 	return nil
 }
 
@@ -659,23 +659,23 @@ func validateFeedbackRequest(req *FeedbackRequest) error {
 	if req == nil {
 		return errors.New("feedback request cannot be nil")
 	}
-	
+
 	if strings.TrimSpace(req.SuggestedOutput) == "" {
 		return errors.New("suggested_output cannot be empty")
 	}
-	
+
 	if len(req.SuggestedOutput) > 10000 {
 		return errors.New("suggested_output too long")
 	}
-	
+
 	validFeedbackTypes := map[string]bool{
 		"correction": true, "alternative": true, "preferred": true,
 	}
-	
+
 	if !validFeedbackTypes[req.FeedbackType] {
 		return fmt.Errorf("invalid feedback_type: %s (must be 'correction', 'alternative', or 'preferred')", req.FeedbackType)
 	}
-	
+
 	return nil
 }
 
@@ -692,11 +692,11 @@ func isSupportedScriptPair(inputScript, outputScript string) bool {
 		"indonesian": {"latin": true, "ascii": true},
 		"malayalam":  {"latin": true, "ascii": true},
 	}
-	
+
 	if targets, exists := supportedPairs[inputScript]; exists {
 		return targets[outputScript]
 	}
-	
+
 	return false
 }
 
@@ -706,12 +706,12 @@ func isValidUUID(uuid string) bool {
 	if len(uuid) != 36 {
 		return false
 	}
-	
+
 	// Check hyphen positions
 	if uuid[8] != '-' || uuid[13] != '-' || uuid[18] != '-' || uuid[23] != '-' {
 		return false
 	}
-	
+
 	// Check all other characters are hex digits
 	for i, r := range uuid {
 		if i == 8 || i == 13 || i == 18 || i == 23 {
@@ -721,7 +721,7 @@ func isValidUUID(uuid string) bool {
 			return false
 		}
 	}
-	
+
 	return true
 }
 
@@ -730,25 +730,25 @@ func isValidLocale(locale string) bool {
 	if locale == "" {
 		return false
 	}
-	
+
 	// Basic check for xx-XX format (language-country)
 	parts := strings.Split(locale, "-")
 	if len(parts) < 1 || len(parts) > 2 {
 		return false
 	}
-	
+
 	// Language code should be 2-3 lowercase letters
 	lang := parts[0]
 	if len(lang) < 2 || len(lang) > 3 {
 		return false
 	}
-	
+
 	for _, r := range lang {
 		if r < 'a' || r > 'z' {
 			return false
 		}
 	}
-	
+
 	// Country code should be 2 uppercase letters (if present)
 	if len(parts) == 2 {
 		country := parts[1]
@@ -761,7 +761,7 @@ func isValidLocale(locale string) bool {
 			}
 		}
 	}
-	
+
 	return true
 }
 
@@ -770,18 +770,18 @@ func performTransliterationWithValidation(text, inputScript, outputScript string
 	if text == "" {
 		return "", errors.New("empty input text")
 	}
-	
+
 	result := performTransliteration(text, inputScript, outputScript, inputLocale)
-	
+
 	// Validate output
 	if result == "" {
 		return "", errors.New("transliteration produced empty result")
 	}
-	
+
 	if !utf8.ValidString(result) {
 		return "", errors.New("transliteration produced invalid UTF-8")
 	}
-	
+
 	return result, nil
 }
 
@@ -790,11 +790,11 @@ func parseName(originalText, transliteratedText, inputScript string) *NameStruct
 	if transliteratedText == "" {
 		return nil
 	}
-	
+
 	// Extract titles first
 	titles := extractTitles(transliteratedText)
 	textWithoutTitles := removeTitles(transliteratedText, titles)
-	
+
 	// Handle cultural naming conventions
 	switch inputScript {
 	case "chinese":
@@ -816,10 +816,10 @@ func extractTitles(text string) []string {
 		"DR", "DOCTOR", "PROF", "PROFESSOR", "MR", "MRS", "MS", "MISS",
 		"SIR", "DAME", "LORD", "LADY", "HON", "HONOURABLE", "REV", "REVEREND",
 	}
-	
+
 	var titles []string
 	words := strings.Fields(strings.ToUpper(text))
-	
+
 	for _, word := range words {
 		cleanWord := strings.Trim(word, ".,")
 		for _, pattern := range titlePatterns {
@@ -829,7 +829,7 @@ func extractTitles(text string) []string {
 			}
 		}
 	}
-	
+
 	return titles
 }
 
@@ -838,7 +838,7 @@ func removeTitles(text string, titles []string) string {
 	if len(titles) == 0 {
 		return text
 	}
-	
+
 	result := text
 	for _, title := range titles {
 		patterns := []string{
@@ -846,13 +846,13 @@ func removeTitles(text string, titles []string) string {
 			strings.ToLower(title),
 			strings.Title(strings.ToLower(title)),
 		}
-		
+
 		for _, pattern := range patterns {
 			result = strings.ReplaceAll(result, pattern+".", "")
 			result = strings.ReplaceAll(result, pattern+" ", "")
 		}
 	}
-	
+
 	return strings.TrimSpace(result)
 }
 
@@ -878,24 +878,24 @@ func parseVietnameseName(original, transliterated string, titles []string) *Name
 	if len(parts) == 0 {
 		return &NameStructure{FullASCII: transliterated, Titles: titles}
 	}
-	
+
 	// Gender markers are handled in gender inference, not needed here for name structure
 	_ = strings.Contains(strings.ToLower(original), "văn") || strings.Contains(strings.ToLower(transliterated), "van")
 	_ = strings.Contains(strings.ToLower(original), "thị") || strings.Contains(strings.ToLower(transliterated), "thi")
-	
+
 	var family, first string
 	var middle []string
-	
+
 	if len(parts) >= 2 {
 		// Vietnamese: Family name first, then middle names, then given name
 		family = strings.ToUpper(parts[0])
 		first = strings.Title(strings.ToLower(parts[len(parts)-1]))
-		
+
 		// Middle names (excluding gender markers)
 		for i := 1; i < len(parts)-1; i++ {
 			part := parts[i]
 			partLower := strings.ToLower(part)
-			
+
 			// Skip Vietnamese gender markers
 			if partLower != "van" && partLower != "thi" && partLower != "văn" && partLower != "thị" {
 				middle = append(middle, strings.Title(strings.ToLower(part)))
@@ -905,10 +905,10 @@ func parseVietnameseName(original, transliterated string, titles []string) *Name
 		// Single name - could be family or given
 		first = strings.Title(strings.ToLower(parts[0]))
 	}
-	
+
 	// Format full ASCII name
 	fullName := formatFullName(family, first, middle, titles)
-	
+
 	return &NameStructure{
 		Family:    family,
 		First:     first,
@@ -924,10 +924,10 @@ func parseChineseName(text string, titles []string) *NameStructure {
 	if len(parts) == 0 {
 		return &NameStructure{FullASCII: text, Titles: titles}
 	}
-	
+
 	var family, first string
 	var middle []string
-	
+
 	if len(parts) >= 2 {
 		// Chinese: Family name first, then given names
 		family = strings.ToUpper(parts[0])
@@ -944,9 +944,9 @@ func parseChineseName(text string, titles []string) *NameStructure {
 		// Single name
 		first = strings.Title(strings.ToLower(parts[0]))
 	}
-	
+
 	fullName := formatFullName(family, first, middle, titles)
-	
+
 	return &NameStructure{
 		Family:    family,
 		First:     first,
@@ -962,15 +962,15 @@ func parseArabicName(text string, titles []string) *NameStructure {
 	if len(parts) == 0 {
 		return &NameStructure{FullASCII: text, Titles: titles}
 	}
-	
+
 	var family, first string
 	var middle []string
-	
+
 	if len(parts) >= 2 {
 		// Arabic: Given name first, patronymics/family name last
 		first = strings.Title(strings.ToLower(parts[0]))
 		family = strings.ToUpper(parts[len(parts)-1])
-		
+
 		// Middle names/patronymics (ibn, bin, bint, etc.)
 		for i := 1; i < len(parts)-1; i++ {
 			middle = append(middle, strings.Title(strings.ToLower(parts[i])))
@@ -978,9 +978,9 @@ func parseArabicName(text string, titles []string) *NameStructure {
 	} else {
 		first = strings.Title(strings.ToLower(parts[0]))
 	}
-	
+
 	fullName := formatFullName(family, first, middle, titles)
-	
+
 	return &NameStructure{
 		Family:    family,
 		First:     first,
@@ -996,7 +996,7 @@ func parseMononymOrPatronymic(text string, titles []string, script string) *Name
 	if len(parts) == 0 {
 		return &NameStructure{FullASCII: text, Titles: titles}
 	}
-	
+
 	// Check for patronymic indicators
 	hasPatronymic := false
 	for _, part := range parts {
@@ -1006,10 +1006,10 @@ func parseMononymOrPatronymic(text string, titles []string, script string) *Name
 			break
 		}
 	}
-	
+
 	var family, first string
 	var middle []string
-	
+
 	if len(parts) == 1 {
 		// Mononym - single name
 		first = strings.Title(strings.ToLower(parts[0]))
@@ -1029,9 +1029,9 @@ func parseMononymOrPatronymic(text string, titles []string, script string) *Name
 			middle = append(middle, strings.Title(strings.ToLower(parts[i])))
 		}
 	}
-	
+
 	fullName := formatFullName(family, first, middle, titles)
-	
+
 	return &NameStructure{
 		Family:    family,
 		First:     first,
@@ -1047,10 +1047,10 @@ func parseWesternName(text string, titles []string) *NameStructure {
 	if len(parts) == 0 {
 		return &NameStructure{FullASCII: text, Titles: titles}
 	}
-	
+
 	var family, first string
 	var middle []string
-	
+
 	if len(parts) == 1 {
 		first = strings.Title(strings.ToLower(parts[0]))
 	} else if len(parts) == 2 {
@@ -1064,9 +1064,9 @@ func parseWesternName(text string, titles []string) *NameStructure {
 			middle = append(middle, strings.Title(strings.ToLower(parts[i])))
 		}
 	}
-	
+
 	fullName := formatFullName(family, first, middle, titles)
-	
+
 	return &NameStructure{
 		Family:    family,
 		First:     first,
@@ -1079,29 +1079,29 @@ func parseWesternName(text string, titles []string) *NameStructure {
 // formatFullName creates the complete formatted ASCII name
 func formatFullName(family, first string, middle []string, titles []string) string {
 	var parts []string
-	
+
 	// Add titles
 	for _, title := range titles {
 		parts = append(parts, title)
 	}
-	
+
 	// Add first name
 	if first != "" {
 		parts = append(parts, first)
 	}
-	
+
 	// Add middle names
 	for _, m := range middle {
 		if m != "" {
 			parts = append(parts, m)
 		}
 	}
-	
+
 	// Add family name
 	if family != "" {
 		parts = append(parts, family)
 	}
-	
+
 	return strings.Join(parts, " ")
 }
 
@@ -1113,12 +1113,12 @@ func inferGender(originalText, transliteratedText, inputScript string) *GenderIn
 		Confidence: 0.1,
 		Source:     "unknown",
 	}
-	
+
 	// Vietnamese gender markers
 	if inputScript == "vietnamese" || strings.Contains(inputScript, "vietnam") {
 		original := strings.ToLower(originalText)
 		transliterated := strings.ToLower(transliteratedText)
-		
+
 		if strings.Contains(original, "văn") || strings.Contains(transliterated, "van") {
 			return &GenderInference{
 				Value:      "M",
@@ -1126,7 +1126,7 @@ func inferGender(originalText, transliteratedText, inputScript string) *GenderIn
 				Source:     "cultural_marker",
 			}
 		}
-		
+
 		if strings.Contains(original, "thị") || strings.Contains(transliterated, "thi") {
 			return &GenderInference{
 				Value:      "F",
@@ -1135,7 +1135,7 @@ func inferGender(originalText, transliteratedText, inputScript string) *GenderIn
 			}
 		}
 	}
-	
+
 	// Arabic patronymic indicators
 	if inputScript == "arabic" {
 		text := strings.ToLower(transliteratedText)
@@ -1149,7 +1149,7 @@ func inferGender(originalText, transliteratedText, inputScript string) *GenderIn
 			inference.Source = "cultural_marker"
 		}
 	}
-	
+
 	// Malaysian/Indonesian patronymic
 	if inputScript == "indonesian" || inputScript == "malayalam" {
 		text := strings.ToLower(transliteratedText)
@@ -1163,7 +1163,7 @@ func inferGender(originalText, transliteratedText, inputScript string) *GenderIn
 			inference.Source = "cultural_marker"
 		}
 	}
-	
+
 	return inference
 }
 
@@ -1173,26 +1173,18 @@ func inferGender(originalText, transliteratedText, inputScript string) *GenderIn
 func ServeApp(w http.ResponseWriter, req *http.Request) {
 	// Extract the path after /app/
 	path := req.URL.Path[5:] // Remove "/app/" prefix
-	
+
 	// Handle root app path
 	if path == "" || path == "/" {
 		path = "index.html"
 	}
-	
+
 	// Build the file path to the Hugo dist directory
 	filePath := filepath.Join("frontend/dist", path)
-	
+
 	// Try to serve the requested file
 	http.ServeFile(w, req, filePath)
 }
-
-// RootRedirect redirects root requests to the frontend app
-//
-//encore:api public raw method=GET path=/
-func RootRedirect(w http.ResponseWriter, req *http.Request) {
-	http.Redirect(w, req, "/app/", http.StatusPermanentRedirect)
-}
-
 
 // Database connection
 var db = sqldb.NewDatabase("transliterate", sqldb.DatabaseConfig{
