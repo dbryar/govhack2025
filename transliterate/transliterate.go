@@ -5,6 +5,7 @@ package transliterate
 import (
 	"context"
 	"database/sql"
+	"embed"
 	"errors"
 	"fmt"
 	"net/http"
@@ -1167,7 +1168,12 @@ func inferGender(originalText, transliteratedText, inputScript string) *GenderIn
 	return inference
 }
 
-// ServeApp serves the Hugo-generated frontend by reading files from disk
+// Embed the frontend dist directory
+//
+//go:embed all:dist
+var frontendFiles embed.FS
+
+// ServeApp serves the Hugo-generated frontend using embedded files
 //
 //encore:api public raw method=GET path=/app/*path
 func ServeApp(w http.ResponseWriter, req *http.Request) {
@@ -1179,11 +1185,54 @@ func ServeApp(w http.ResponseWriter, req *http.Request) {
 		path = "index.html"
 	}
 
-	// Build the file path to the Hugo dist directory
-	filePath := filepath.Join("../frontend/dist", path)
+	// Build the file path within the embedded filesystem
+	filePath := filepath.Join("dist", path)
 
-	// Try to serve the requested file
-	http.ServeFile(w, req, filePath)
+	// Read the file from embedded filesystem
+	content, err := frontendFiles.ReadFile(filePath)
+	if err != nil {
+		// Try index.html for directory paths
+		if !strings.HasSuffix(path, ".html") && !strings.Contains(path, ".") {
+			indexPath := filepath.Join("dist", path, "index.html")
+			content, err = frontendFiles.ReadFile(indexPath)
+			if err != nil {
+				http.NotFound(w, req)
+				return
+			}
+			filePath = indexPath
+		} else {
+			http.NotFound(w, req)
+			return
+		}
+	}
+
+	// Set content type based on file extension
+	contentType := "text/plain"
+	switch filepath.Ext(filePath) {
+	case ".html":
+		contentType = "text/html"
+	case ".css":
+		contentType = "text/css"
+	case ".js":
+		contentType = "application/javascript"
+	case ".json":
+		contentType = "application/json"
+	case ".xml":
+		contentType = "application/xml"
+	case ".svg":
+		contentType = "image/svg+xml"
+	case ".png":
+		contentType = "image/png"
+	case ".jpg", ".jpeg":
+		contentType = "image/jpeg"
+	case ".gif":
+		contentType = "image/gif"
+	case ".ico":
+		contentType = "image/x-icon"
+	}
+
+	w.Header().Set("Content-Type", contentType)
+	w.Write(content)
 }
 
 // Database connection

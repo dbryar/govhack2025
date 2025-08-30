@@ -18,7 +18,9 @@
       "WebFetch(domain:app.encore.cloud)",
       "Bash(encore app:*)",
       "Bash(encore logs:*)",
-      "Bash(bun run:*)"
+      "Bash(bun run:*)",
+      "Read(/Users/daniel.bryar/nexus/**)",
+      "Bash(go build:*)"
     ],
     "deny": [],
     "ask": []
