@@ -1169,7 +1169,7 @@ func inferGender(originalText, transliteratedText, inputScript string) *GenderIn
 
 // ServeStatic serves the Hugo-generated frontend by reading files from disk
 //
-//encore:api public raw path=/!path
+//encore:api public raw method=GET path=/*path
 func ServeStatic(w http.ResponseWriter, req *http.Request) {
 	// Handle root path
 	path := req.URL.Path
