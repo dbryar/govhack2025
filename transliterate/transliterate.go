@@ -64,7 +64,7 @@ type FeedbackRequest struct {
 
 // Transliterate converts text from one script to another
 //
-//encore:api public method=POST path=/transliterate
+//encore:api public method=POST path=/api/transliterate
 func Transliterate(ctx context.Context, req *TransliterationRequest) (*TransliterationResponse, error) {
 	// Validate input
 	if err := validateTransliterationRequest(req); err != nil {
@@ -138,7 +138,7 @@ func Transliterate(ctx context.Context, req *TransliterationRequest) (*Translite
 
 // GetTransliteration retrieves a previously stored transliteration by ID
 //
-//encore:api public method=GET path=/transliterate/:id
+//encore:api public method=GET path=/api/transliterate/:id
 func GetTransliteration(ctx context.Context, id string) (*TransliterationResponse, error) {
 	// Validate UUID format
 	if !isValidUUID(id) {
@@ -173,7 +173,7 @@ func GetTransliteration(ctx context.Context, id string) (*TransliterationRespons
 
 // SubmitFeedback allows users to provide feedback on transliteration results
 //
-//encore:api public method=POST path=/transliterate/:id/feedback
+//encore:api public method=POST path=/api/transliterate/:id/feedback
 func SubmitFeedback(ctx context.Context, id string, req *FeedbackRequest) error {
 	// Validate feedback request
 	if err := validateFeedbackRequest(req); err != nil {
@@ -1167,19 +1167,16 @@ func inferGender(originalText, transliteratedText, inputScript string) *GenderIn
 	return inference
 }
 
-// ServeStatic serves the Hugo-generated frontend by reading files from disk
+// ServeApp serves the Hugo-generated frontend by reading files from disk
 //
-//encore:api public raw method=GET path=/*path
-func ServeStatic(w http.ResponseWriter, req *http.Request) {
-	// Handle root path
-	path := req.URL.Path
-	if path == "/" || path == "" {
-		path = "/index.html"
-	}
+//encore:api public raw method=GET path=/app/*path
+func ServeApp(w http.ResponseWriter, req *http.Request) {
+	// Extract the path after /app/
+	path := req.URL.Path[5:] // Remove "/app/" prefix
 	
-	// Remove leading slash for file path
-	if strings.HasPrefix(path, "/") {
-		path = path[1:]
+	// Handle root app path
+	if path == "" || path == "/" {
+		path = "index.html"
 	}
 	
 	// Build the file path to the Hugo dist directory
@@ -1187,6 +1184,13 @@ func ServeStatic(w http.ResponseWriter, req *http.Request) {
 	
 	// Try to serve the requested file
 	http.ServeFile(w, req, filePath)
+}
+
+// RootRedirect redirects root requests to the frontend app
+//
+//encore:api public raw method=GET path=/
+func RootRedirect(w http.ResponseWriter, req *http.Request) {
+	http.Redirect(w, req, "/app/", http.StatusPermanentRedirect)
 }
 
 
