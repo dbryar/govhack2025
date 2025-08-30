@@ -346,6 +346,327 @@ func TestLocaleValidation(t *testing.T) {
 	}
 }
 
+// TestNameParsing tests structured name parsing for different cultural conventions
+func TestNameParsing(t *testing.T) {
+	tests := []struct {
+		name           string
+		originalText   string
+		transliterated string
+		inputScript    string
+		expected       NameStructure
+	}{
+		{
+			name:           "Vietnamese Male with Van marker",
+			originalText:   "Nguyễn Văn Minh",
+			transliterated: "Nguyen Van Minh",
+			inputScript:    "vietnamese",
+			expected: NameStructure{
+				Family:    "NGUYEN",
+				First:     "Minh",
+				Middle:    []string{},
+				Titles:    []string{},
+				FullASCII: "Minh NGUYEN",
+			},
+		},
+		{
+			name:           "Vietnamese Female with Thi marker", 
+			originalText:   "Trần Thị Lan",
+			transliterated: "Tran Thi Lan", 
+			inputScript:    "vietnamese",
+			expected: NameStructure{
+				Family:    "TRAN",
+				First:     "Lan",
+				Middle:    []string{},
+				Titles:    []string{},
+				FullASCII: "Lan TRAN",
+			},
+		},
+		{
+			name:           "Chinese Traditional Order",
+			originalText:   "李小明",
+			transliterated: "Li Xiaoming",
+			inputScript:    "chinese",
+			expected: NameStructure{
+				Family:    "LI",
+				First:     "Xiaoming",
+				Middle:    []string{},
+				Titles:    []string{},
+				FullASCII: "Xiaoming LI",
+			},
+		},
+		{
+			name:           "Arabic with Patronymic",
+			originalText:   "أحمد بن محمد العلي",
+			transliterated: "Ahmed bin Mohammed Alali",
+			inputScript:    "arabic",
+			expected: NameStructure{
+				Family:    "ALALI",
+				First:     "Ahmed",
+				Middle:    []string{"Bin", "Mohammed"},
+				Titles:    []string{},
+				FullASCII: "Ahmed Bin Mohammed ALALI",
+			},
+		},
+		{
+			name:           "Indonesian Mononym",
+			originalText:   "Suharto",
+			transliterated: "Suharto",
+			inputScript:    "indonesian",
+			expected: NameStructure{
+				Family:    "",
+				First:     "Suharto",
+				Middle:    []string{},
+				Titles:    []string{},
+				FullASCII: "Suharto",
+			},
+		},
+		{
+			name:           "Malaysian with Patronymic",
+			originalText:   "Ahmad bin Abdullah",
+			transliterated: "Ahmad bin Abdullah",
+			inputScript:    "indonesian",
+			expected: NameStructure{
+				Family:    "",
+				First:     "Ahmad",
+				Middle:    []string{"Bin", "Abdullah"},
+				Titles:    []string{},
+				FullASCII: "Ahmad Bin Abdullah",
+			},
+		},
+		{
+			name:           "Western with Title",
+			originalText:   "Dr. John Smith",
+			transliterated: "Dr John Smith",
+			inputScript:    "latin",
+			expected: NameStructure{
+				Family:    "SMITH",
+				First:     "John",
+				Middle:    []string{},
+				Titles:    []string{"DR"},
+				FullASCII: "DR John SMITH",
+			},
+		},
+		{
+			name:           "Western with Middle Name",
+			originalText:   "Mary Jane Watson",
+			transliterated: "Mary Jane Watson",
+			inputScript:    "latin",
+			expected: NameStructure{
+				Family:    "WATSON",
+				First:     "Mary",
+				Middle:    []string{"Jane"},
+				Titles:    []string{},
+				FullASCII: "Mary Jane WATSON",
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := parseName(tt.originalText, tt.transliterated, tt.inputScript)
+			if result == nil {
+				t.Fatal("parseName returned nil")
+			}
+
+			if result.Family != tt.expected.Family {
+				t.Errorf("Family = %q, want %q", result.Family, tt.expected.Family)
+			}
+			if result.First != tt.expected.First {
+				t.Errorf("First = %q, want %q", result.First, tt.expected.First)
+			}
+			if len(result.Middle) != len(tt.expected.Middle) {
+				t.Errorf("Middle length = %d, want %d", len(result.Middle), len(tt.expected.Middle))
+			} else {
+				for i, middle := range result.Middle {
+					if middle != tt.expected.Middle[i] {
+						t.Errorf("Middle[%d] = %q, want %q", i, middle, tt.expected.Middle[i])
+					}
+				}
+			}
+			if len(result.Titles) != len(tt.expected.Titles) {
+				t.Errorf("Titles length = %d, want %d", len(result.Titles), len(tt.expected.Titles))
+			} else {
+				for i, title := range result.Titles {
+					if title != tt.expected.Titles[i] {
+						t.Errorf("Titles[%d] = %q, want %q", i, title, tt.expected.Titles[i])
+					}
+				}
+			}
+			if result.FullASCII != tt.expected.FullASCII {
+				t.Errorf("FullASCII = %q, want %q", result.FullASCII, tt.expected.FullASCII)
+			}
+		})
+	}
+}
+
+// TestGenderInference tests gender inference from cultural markers
+func TestGenderInference(t *testing.T) {
+	tests := []struct {
+		name           string
+		originalText   string
+		transliterated string
+		inputScript    string
+		expectedGender string
+		minConfidence  float64
+		expectedSource string
+	}{
+		{
+			name:           "Vietnamese Male Văn marker",
+			originalText:   "Nguyễn Văn Minh",
+			transliterated: "Nguyen Van Minh",
+			inputScript:    "vietnamese",
+			expectedGender: "M",
+			minConfidence:  0.8,
+			expectedSource: "cultural_marker",
+		},
+		{
+			name:           "Vietnamese Female Thị marker",
+			originalText:   "Trần Thị Lan",
+			transliterated: "Tran Thi Lan",
+			inputScript:    "vietnamese", 
+			expectedGender: "F",
+			minConfidence:  0.8,
+			expectedSource: "cultural_marker",
+		},
+		{
+			name:           "Arabic Male bin patronymic",
+			originalText:   "أحمد بن محمد",
+			transliterated: "Ahmed bin Mohammed",
+			inputScript:    "arabic",
+			expectedGender: "M",
+			minConfidence:  0.7,
+			expectedSource: "cultural_marker",
+		},
+		{
+			name:           "Arabic Female bint patronymic",
+			originalText:   "فاطمة بنت علي",
+			transliterated: "Fatima bint Ali",
+			inputScript:    "arabic",
+			expectedGender: "F", 
+			minConfidence:  0.7,
+			expectedSource: "cultural_marker",
+		},
+		{
+			name:           "Malaysian Male bin patronymic",
+			originalText:   "Ahmad bin Abdullah",
+			transliterated: "Ahmad bin Abdullah",
+			inputScript:    "indonesian",
+			expectedGender: "M",
+			minConfidence:  0.75,
+			expectedSource: "cultural_marker",
+		},
+		{
+			name:           "Indonesian Mononym Unknown",
+			originalText:   "Suharto",
+			transliterated: "Suharto",
+			inputScript:    "indonesian", 
+			expectedGender: "X",
+			minConfidence:  0.0,
+			expectedSource: "unknown",
+		},
+		{
+			name:           "Chinese Name Unknown",
+			originalText:   "李小明",
+			transliterated: "Li Xiaoming",
+			inputScript:    "chinese",
+			expectedGender: "X",
+			minConfidence:  0.0,
+			expectedSource: "unknown",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := inferGender(tt.originalText, tt.transliterated, tt.inputScript)
+			if result == nil {
+				t.Fatal("inferGender returned nil")
+			}
+
+			if result.Value != tt.expectedGender {
+				t.Errorf("Gender = %q, want %q", result.Value, tt.expectedGender)
+			}
+			if result.Confidence < tt.minConfidence {
+				t.Errorf("Confidence = %f, want >= %f", result.Confidence, tt.minConfidence)
+			}
+			if result.Source != tt.expectedSource {
+				t.Errorf("Source = %q, want %q", result.Source, tt.expectedSource)
+			}
+		})
+	}
+}
+
+// TestFullTransliterationWithNameParsing tests complete API with structured name output
+func TestFullTransliterationWithNameParsing(t *testing.T) {
+	tests := []struct {
+		name         string
+		request      TransliterationRequest
+		expectName   bool
+		expectGender bool
+	}{
+		{
+			name: "Vietnamese name with gender marker",
+			request: TransliterationRequest{
+				Text:         "Nguyễn Văn Minh",
+				InputScript:  "vietnamese",
+				OutputScript: "ascii",
+			},
+			expectName:   true,
+			expectGender: true,
+		},
+		{
+			name: "Chinese name",
+			request: TransliterationRequest{
+				Text:         "李小明",
+				InputScript:  "chinese", 
+				OutputScript: "latin",
+			},
+			expectName:   true,
+			expectGender: true,
+		},
+		{
+			name: "Arabic name with patronymic",
+			request: TransliterationRequest{
+				Text:         "أحمد بن محمد",
+				InputScript:  "arabic",
+				OutputScript: "latin",
+			},
+			expectName:   true,
+			expectGender: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			resp, err := Transliterate(context.Background(), &tt.request)
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			if tt.expectName {
+				if resp.Name == nil {
+					t.Error("Expected name structure, got nil")
+				} else {
+					if resp.Name.FullASCII == "" {
+						t.Error("Expected FullASCII to be populated")
+					}
+					t.Logf("Name structure: %+v", resp.Name)
+				}
+			}
+
+			if tt.expectGender {
+				if resp.Gender == nil {
+					t.Error("Expected gender inference, got nil")
+				} else {
+					if resp.Gender.Value == "" {
+						t.Error("Expected gender value to be populated")
+					}
+					t.Logf("Gender inference: %+v", resp.Gender)
+				}
+			}
+		})
+	}
+}
+
 // TestScriptPairSupport tests supported script combinations
 func TestScriptPairSupport(t *testing.T) {
 	tests := []struct {

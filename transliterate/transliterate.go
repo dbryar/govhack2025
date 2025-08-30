@@ -24,16 +24,34 @@ type TransliterationRequest struct {
 	InputLocale  *string `json:"input_locale,omitempty"`  // e.g., 'zh-CN', 'ru-RU' (optional)
 }
 
+// NameStructure represents parsed name components
+type NameStructure struct {
+	Family    string   `json:"family"`              // Family/surname in UPPERCASE
+	First     string   `json:"first"`               // Given/first name in Title Case  
+	Middle    []string `json:"middle,omitempty"`    // Middle names/patronymics
+	Titles    []string `json:"titles,omitempty"`    // Extracted titles (Dr, Prof, etc)
+	FullASCII string   `json:"full_ascii"`          // Complete formatted ASCII name
+}
+
+// GenderInference represents inferred gender with confidence
+type GenderInference struct {
+	Value      string  `json:"value"`      // M, F, or X (unknown/non-binary)
+	Confidence float64 `json:"confidence"` // 0.0 to 1.0
+	Source     string  `json:"source"`     // "cultural_marker", "statistical", "unknown"
+}
+
 // TransliterationResponse represents the result of transliteration
 type TransliterationResponse struct {
-	ID               string   `json:"id"`
-	InputText        string   `json:"input_text"`
-	OutputText       string   `json:"output_text"`
-	InputScript      string   `json:"input_script"`
-	OutputScript     string   `json:"output_script"`
-	InputLocale      *string  `json:"input_locale,omitempty"`
-	ConfidenceScore  *float64 `json:"confidence_score"`
-	AlternativeForms []string `json:"alternative_forms,omitempty"`
+	ID               string           `json:"id"`
+	InputText        string           `json:"input_text"`
+	OutputText       string           `json:"output_text"`
+	InputScript      string           `json:"input_script"`
+	OutputScript     string           `json:"output_script"`
+	InputLocale      *string          `json:"input_locale,omitempty"`
+	ConfidenceScore  *float64         `json:"confidence_score"`
+	AlternativeForms []string         `json:"alternative_forms,omitempty"`
+	Name             *NameStructure   `json:"name,omitempty"`           // Structured name parsing
+	Gender           *GenderInference `json:"gender,omitempty"`         // Gender inference
 }
 
 // FeedbackRequest represents user feedback on transliteration results
@@ -70,6 +88,14 @@ func Transliterate(ctx context.Context, req *TransliterationRequest) (*Translite
 	// Check if we have this transliteration cached
 	cached, err := getCachedTransliteration(ctx, req.Text, inputScript, req.OutputScript, req.InputLocale)
 	if err == nil && cached != nil {
+		// Parse name structure and gender for cached results (they may not be stored)
+		if cached.Name == nil {
+			cached.Name = parseName(req.Text, cached.OutputText, inputScript)
+		}
+		if cached.Gender == nil {
+			cached.Gender = inferGender(req.Text, cached.OutputText, inputScript)
+		}
+		
 		// Update usage count
 		_, updateErr := db.Exec(ctx, `
 			UPDATE transliterations 
@@ -91,11 +117,21 @@ func Transliterate(ctx context.Context, req *TransliterationRequest) (*Translite
 	// Calculate confidence score
 	confidenceScore := calculateConfidence(req.Text, outputText, inputScript, req.OutputScript)
 
+	// Parse name structure from transliterated text
+	nameStructure := parseName(req.Text, outputText, inputScript)
+	
+	// Infer gender from name and cultural markers
+	genderInference := inferGender(req.Text, outputText, inputScript)
+	
 	// Store the result
 	result, err := storeTransliteration(ctx, req.Text, outputText, inputScript, req.OutputScript, req.InputLocale, confidenceScore)
 	if err != nil {
 		return nil, fmt.Errorf("failed to store transliteration: %w", err)
 	}
+	
+	// Add structured name parsing and gender inference to response
+	result.Name = nameStructure
+	result.Gender = genderInference
 
 	return result, nil
 }
@@ -127,6 +163,11 @@ func GetTransliteration(ctx context.Context, id string) (*TransliterationRespons
 	}
 
 	result.InputLocale = inputLocale
+	
+	// Add name parsing and gender inference for retrieved records
+	result.Name = parseName(result.InputText, result.OutputText, result.InputScript)
+	result.Gender = inferGender(result.InputText, result.OutputText, result.InputScript)
+	
 	return &result, nil
 }
 
@@ -594,6 +635,7 @@ func validateTransliterationRequest(req *TransliterationRequest) error {
 	validScripts := map[string]bool{
 		"latin": true, "ascii": true, "cyrillic": true, 
 		"chinese": true, "arabic": true, "greek": true,
+		"vietnamese": true, "indonesian": true, "malayalam": true,
 	}
 	
 	if req.InputScript != "" && !validScripts[req.InputScript] {
@@ -640,12 +682,15 @@ func validateFeedbackRequest(req *FeedbackRequest) error {
 // isSupportedScriptPair checks if the script conversion is supported
 func isSupportedScriptPair(inputScript, outputScript string) bool {
 	supportedPairs := map[string]map[string]bool{
-		"latin":    {"ascii": true, "latin": true},
-		"ascii":    {"latin": true, "ascii": true},
-		"cyrillic": {"latin": true, "ascii": true},
-		"chinese":  {"latin": true, "ascii": true},
-		"arabic":   {"latin": true, "ascii": true},
-		"greek":    {"latin": true, "ascii": true},
+		"latin":      {"ascii": true, "latin": true},
+		"ascii":      {"latin": true, "ascii": true},
+		"cyrillic":   {"latin": true, "ascii": true},
+		"chinese":    {"latin": true, "ascii": true},
+		"arabic":     {"latin": true, "ascii": true},
+		"greek":      {"latin": true, "ascii": true},
+		"vietnamese": {"latin": true, "ascii": true},
+		"indonesian": {"latin": true, "ascii": true},
+		"malayalam":  {"latin": true, "ascii": true},
 	}
 	
 	if targets, exists := supportedPairs[inputScript]; exists {
@@ -738,6 +783,388 @@ func performTransliterationWithValidation(text, inputScript, outputScript string
 	}
 	
 	return result, nil
+}
+
+// parseName extracts structured name components from transliterated text
+func parseName(originalText, transliteratedText, inputScript string) *NameStructure {
+	if transliteratedText == "" {
+		return nil
+	}
+	
+	// Extract titles first
+	titles := extractTitles(transliteratedText)
+	textWithoutTitles := removeTitles(transliteratedText, titles)
+	
+	// Handle cultural naming conventions
+	switch inputScript {
+	case "chinese":
+		return parseChineseName(textWithoutTitles, titles)
+	case "vietnamese":
+		return parseVietnameseName(originalText, textWithoutTitles, titles)
+	case "arabic":
+		return parseArabicName(textWithoutTitles, titles)
+	case "indonesian", "malayalam":
+		return parseMononymOrPatronymic(textWithoutTitles, titles, inputScript)
+	default:
+		return parseWesternName(textWithoutTitles, titles)
+	}
+}
+
+// extractTitles identifies and extracts titles from text
+func extractTitles(text string) []string {
+	titlePatterns := []string{
+		"DR", "DOCTOR", "PROF", "PROFESSOR", "MR", "MRS", "MS", "MISS",
+		"SIR", "DAME", "LORD", "LADY", "HON", "HONOURABLE", "REV", "REVEREND",
+	}
+	
+	var titles []string
+	words := strings.Fields(strings.ToUpper(text))
+	
+	for _, word := range words {
+		cleanWord := strings.Trim(word, ".,")
+		for _, pattern := range titlePatterns {
+			if cleanWord == pattern {
+				titles = append(titles, formatTitle(cleanWord))
+				break
+			}
+		}
+	}
+	
+	return titles
+}
+
+// removeTitles removes identified titles from text
+func removeTitles(text string, titles []string) string {
+	if len(titles) == 0 {
+		return text
+	}
+	
+	result := text
+	for _, title := range titles {
+		patterns := []string{
+			strings.ToUpper(title),
+			strings.ToLower(title),
+			strings.Title(strings.ToLower(title)),
+		}
+		
+		for _, pattern := range patterns {
+			result = strings.ReplaceAll(result, pattern+".", "")
+			result = strings.ReplaceAll(result, pattern+" ", "")
+		}
+	}
+	
+	return strings.TrimSpace(result)
+}
+
+// formatTitle formats title for display
+func formatTitle(title string) string {
+	switch strings.ToUpper(title) {
+	case "DR", "DOCTOR":
+		return "DR"
+	case "PROF", "PROFESSOR":
+		return "PROF"
+	case "REV", "REVEREND":
+		return "REV"
+	case "HON", "HONOURABLE":
+		return "HON"
+	default:
+		return strings.ToUpper(title)
+	}
+}
+
+// parseVietnameseName handles Vietnamese naming conventions
+func parseVietnameseName(original, transliterated string, titles []string) *NameStructure {
+	parts := strings.Fields(transliterated)
+	if len(parts) == 0 {
+		return &NameStructure{FullASCII: transliterated, Titles: titles}
+	}
+	
+	// Gender markers are handled in gender inference, not needed here for name structure
+	_ = strings.Contains(strings.ToLower(original), "văn") || strings.Contains(strings.ToLower(transliterated), "van")
+	_ = strings.Contains(strings.ToLower(original), "thị") || strings.Contains(strings.ToLower(transliterated), "thi")
+	
+	var family, first string
+	var middle []string
+	
+	if len(parts) >= 2 {
+		// Vietnamese: Family name first, then middle names, then given name
+		family = strings.ToUpper(parts[0])
+		first = strings.Title(strings.ToLower(parts[len(parts)-1]))
+		
+		// Middle names (excluding gender markers)
+		for i := 1; i < len(parts)-1; i++ {
+			part := parts[i]
+			partLower := strings.ToLower(part)
+			
+			// Skip Vietnamese gender markers
+			if partLower != "van" && partLower != "thi" && partLower != "văn" && partLower != "thị" {
+				middle = append(middle, strings.Title(strings.ToLower(part)))
+			}
+		}
+	} else {
+		// Single name - could be family or given
+		first = strings.Title(strings.ToLower(parts[0]))
+	}
+	
+	// Format full ASCII name
+	fullName := formatFullName(family, first, middle, titles)
+	
+	return &NameStructure{
+		Family:    family,
+		First:     first,
+		Middle:    middle,
+		Titles:    titles,
+		FullASCII: fullName,
+	}
+}
+
+// parseChineseName handles Chinese naming conventions
+func parseChineseName(text string, titles []string) *NameStructure {
+	parts := strings.Fields(text)
+	if len(parts) == 0 {
+		return &NameStructure{FullASCII: text, Titles: titles}
+	}
+	
+	var family, first string
+	var middle []string
+	
+	if len(parts) >= 2 {
+		// Chinese: Family name first, then given names
+		family = strings.ToUpper(parts[0])
+		if len(parts) == 2 {
+			first = strings.Title(strings.ToLower(parts[1]))
+		} else {
+			// Multiple given names
+			first = strings.Title(strings.ToLower(parts[len(parts)-1]))
+			for i := 1; i < len(parts)-1; i++ {
+				middle = append(middle, strings.Title(strings.ToLower(parts[i])))
+			}
+		}
+	} else {
+		// Single name
+		first = strings.Title(strings.ToLower(parts[0]))
+	}
+	
+	fullName := formatFullName(family, first, middle, titles)
+	
+	return &NameStructure{
+		Family:    family,
+		First:     first,
+		Middle:    middle,
+		Titles:    titles,
+		FullASCII: fullName,
+	}
+}
+
+// parseArabicName handles Arabic naming conventions
+func parseArabicName(text string, titles []string) *NameStructure {
+	parts := strings.Fields(text)
+	if len(parts) == 0 {
+		return &NameStructure{FullASCII: text, Titles: titles}
+	}
+	
+	var family, first string
+	var middle []string
+	
+	if len(parts) >= 2 {
+		// Arabic: Given name first, patronymics/family name last
+		first = strings.Title(strings.ToLower(parts[0]))
+		family = strings.ToUpper(parts[len(parts)-1])
+		
+		// Middle names/patronymics (ibn, bin, bint, etc.)
+		for i := 1; i < len(parts)-1; i++ {
+			middle = append(middle, strings.Title(strings.ToLower(parts[i])))
+		}
+	} else {
+		first = strings.Title(strings.ToLower(parts[0]))
+	}
+	
+	fullName := formatFullName(family, first, middle, titles)
+	
+	return &NameStructure{
+		Family:    family,
+		First:     first,
+		Middle:    middle,
+		Titles:    titles,
+		FullASCII: fullName,
+	}
+}
+
+// parseMononymOrPatronymic handles single names or patronymic structures
+func parseMononymOrPatronymic(text string, titles []string, script string) *NameStructure {
+	parts := strings.Fields(text)
+	if len(parts) == 0 {
+		return &NameStructure{FullASCII: text, Titles: titles}
+	}
+	
+	// Check for patronymic indicators
+	hasPatronymic := false
+	for _, part := range parts {
+		lower := strings.ToLower(part)
+		if lower == "bin" || lower == "binti" || lower == "ibn" || lower == "bint" {
+			hasPatronymic = true
+			break
+		}
+	}
+	
+	var family, first string
+	var middle []string
+	
+	if len(parts) == 1 {
+		// Mononym - single name
+		first = strings.Title(strings.ToLower(parts[0]))
+	} else if hasPatronymic {
+		// Handle patronymic structure
+		first = strings.Title(strings.ToLower(parts[0]))
+		for i := 1; i < len(parts); i++ {
+			middle = append(middle, strings.Title(strings.ToLower(parts[i])))
+		}
+	} else {
+		// Regular multi-part name
+		first = strings.Title(strings.ToLower(parts[0]))
+		if len(parts) > 1 {
+			family = strings.ToUpper(parts[len(parts)-1])
+		}
+		for i := 1; i < len(parts)-1; i++ {
+			middle = append(middle, strings.Title(strings.ToLower(parts[i])))
+		}
+	}
+	
+	fullName := formatFullName(family, first, middle, titles)
+	
+	return &NameStructure{
+		Family:    family,
+		First:     first,
+		Middle:    middle,
+		Titles:    titles,
+		FullASCII: fullName,
+	}
+}
+
+// parseWesternName handles Western naming conventions
+func parseWesternName(text string, titles []string) *NameStructure {
+	parts := strings.Fields(text)
+	if len(parts) == 0 {
+		return &NameStructure{FullASCII: text, Titles: titles}
+	}
+	
+	var family, first string
+	var middle []string
+	
+	if len(parts) == 1 {
+		first = strings.Title(strings.ToLower(parts[0]))
+	} else if len(parts) == 2 {
+		first = strings.Title(strings.ToLower(parts[0]))
+		family = strings.ToUpper(parts[1])
+	} else {
+		// First + middle names + last
+		first = strings.Title(strings.ToLower(parts[0]))
+		family = strings.ToUpper(parts[len(parts)-1])
+		for i := 1; i < len(parts)-1; i++ {
+			middle = append(middle, strings.Title(strings.ToLower(parts[i])))
+		}
+	}
+	
+	fullName := formatFullName(family, first, middle, titles)
+	
+	return &NameStructure{
+		Family:    family,
+		First:     first,
+		Middle:    middle,
+		Titles:    titles,
+		FullASCII: fullName,
+	}
+}
+
+// formatFullName creates the complete formatted ASCII name
+func formatFullName(family, first string, middle []string, titles []string) string {
+	var parts []string
+	
+	// Add titles
+	for _, title := range titles {
+		parts = append(parts, title)
+	}
+	
+	// Add first name
+	if first != "" {
+		parts = append(parts, first)
+	}
+	
+	// Add middle names
+	for _, m := range middle {
+		if m != "" {
+			parts = append(parts, m)
+		}
+	}
+	
+	// Add family name
+	if family != "" {
+		parts = append(parts, family)
+	}
+	
+	return strings.Join(parts, " ")
+}
+
+// inferGender attempts to determine gender from name and cultural markers
+func inferGender(originalText, transliteratedText, inputScript string) *GenderInference {
+	// Default to unknown
+	inference := &GenderInference{
+		Value:      "X",
+		Confidence: 0.1,
+		Source:     "unknown",
+	}
+	
+	// Vietnamese gender markers
+	if inputScript == "vietnamese" || strings.Contains(inputScript, "vietnam") {
+		original := strings.ToLower(originalText)
+		transliterated := strings.ToLower(transliteratedText)
+		
+		if strings.Contains(original, "văn") || strings.Contains(transliterated, "van") {
+			return &GenderInference{
+				Value:      "M",
+				Confidence: 0.85,
+				Source:     "cultural_marker",
+			}
+		}
+		
+		if strings.Contains(original, "thị") || strings.Contains(transliterated, "thi") {
+			return &GenderInference{
+				Value:      "F",
+				Confidence: 0.85,
+				Source:     "cultural_marker",
+			}
+		}
+	}
+	
+	// Arabic patronymic indicators
+	if inputScript == "arabic" {
+		text := strings.ToLower(transliteratedText)
+		if strings.Contains(text, "bin ") || strings.Contains(text, "ibn ") {
+			inference.Value = "M"
+			inference.Confidence = 0.75
+			inference.Source = "cultural_marker"
+		} else if strings.Contains(text, "bint ") {
+			inference.Value = "F"
+			inference.Confidence = 0.75
+			inference.Source = "cultural_marker"
+		}
+	}
+	
+	// Malaysian/Indonesian patronymic
+	if inputScript == "indonesian" || inputScript == "malayalam" {
+		text := strings.ToLower(transliteratedText)
+		if strings.Contains(text, "bin ") {
+			inference.Value = "M"
+			inference.Confidence = 0.80
+			inference.Source = "cultural_marker"
+		} else if strings.Contains(text, "binti ") {
+			inference.Value = "F"
+			inference.Confidence = 0.80
+			inference.Source = "cultural_marker"
+		}
+	}
+	
+	return inference
 }
 
 // ServeStatic serves the Hugo-generated frontend by reading files from disk
