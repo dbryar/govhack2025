@@ -88,20 +88,20 @@ func DetectScript(text string) ScriptInfo {
 
 // DetectLanguage attempts to identify the language based on text characteristics
 func DetectLanguage(text string, scriptInfo ScriptInfo) LanguageHint {
-	text = strings.ToLower(text)
 	indicators := make([]string, 0)
+	lowerText := strings.ToLower(text)
 	
 	switch scriptInfo.Script {
 	case "vietnamese", "latin":
-		if isVietnamese(text) {
+		if isVietnamese(lowerText) {
 			indicators = append(indicators, "vietnamese_diacritics")
 			return LanguageHint{Language: "vi", Confidence: 0.85, Indicators: indicators}
 		}
-		if isGerman(text) {
+		if isGerman(lowerText) {
 			indicators = append(indicators, "german_umlauts")
 			return LanguageHint{Language: "de", Confidence: 0.80, Indicators: indicators}
 		}
-		if isSpanish(text) {
+		if isSpanish(lowerText) {
 			indicators = append(indicators, "spanish_characters")
 			return LanguageHint{Language: "es", Confidence: 0.75, Indicators: indicators}
 		}
@@ -119,7 +119,7 @@ func DetectLanguage(text string, scriptInfo ScriptInfo) LanguageHint {
 		return LanguageHint{Language: "ja", Confidence: 0.90, Indicators: indicators}
 		
 	case "cyrillic":
-		if isRussian(text) {
+		if isRussian(lowerText) {
 			indicators = append(indicators, "russian_patterns")
 			return LanguageHint{Language: "ru", Confidence: 0.80, Indicators: indicators}
 		}
@@ -311,3 +311,5 @@ func ContainsScript(text, script string) bool {
 	}
 	return false
 }
+
+// Note: Removed whatlanggo dependency due to compilation issues

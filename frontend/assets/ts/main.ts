@@ -85,6 +85,7 @@ class TransliterationApp {
   private initializeEventListeners(): void {
     const form = document.getElementById("transliteration-form") as HTMLFormElement
     const feedbackForm = document.getElementById("feedback-form") as HTMLFormElement
+    const textInput = document.getElementById("text") as HTMLInputElement
 
     if (form) {
       form.addEventListener("submit", this.handleTransliteration.bind(this))
@@ -93,6 +94,34 @@ class TransliterationApp {
     if (feedbackForm) {
       feedbackForm.addEventListener("submit", this.handleFeedback.bind(this))
     }
+
+    // Handle enter key submit on text input
+    if (textInput) {
+      textInput.addEventListener("keypress", (event: KeyboardEvent) => {
+        if (event.key === "Enter" && !event.shiftKey) {
+          event.preventDefault()
+          form?.dispatchEvent(new Event("submit"))
+        }
+      })
+    }
+
+    // Handle example buttons
+    this.initializeExampleButtons()
+  }
+
+  private initializeExampleButtons(): void {
+    // Use event delegation to handle dynamically added buttons
+    document.addEventListener("click", (event) => {
+      const target = event.target as HTMLElement
+      if (target.classList.contains("example-btn")) {
+        const example = target.getAttribute("data-example")
+        const textInput = document.getElementById("text") as HTMLInputElement
+        if (example && textInput) {
+          textInput.value = example
+          textInput.focus()
+        }
+      }
+    })
   }
 
   private async handleTransliteration(event: Event): Promise<void> {

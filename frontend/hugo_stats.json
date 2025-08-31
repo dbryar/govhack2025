@@ -3,6 +3,7 @@
     "tags": [
       "a",
       "body",
+      "br",
       "button",
       "div",
       "footer",
@@ -21,7 +22,6 @@
       "script",
       "select",
       "strong",
-      "textarea",
       "title"
     ],
     "classes": [
@@ -29,6 +29,7 @@
       "button-secondary",
       "card",
       "container",
+      "example-btn",
       "form-group",
       "form-row",
       "script-examples",

@@ -9,6 +9,7 @@ import (
 	"unicode/utf8"
 	"errors"
 
+	"github.com/mozillazg/go-unidecode"
 	"encore.dev/storage/sqldb"
 )
 
@@ -404,36 +405,75 @@ func (e *Engine) approximateToASCII(r rune) string {
 	
 	// Common approximations
 	approximations := map[rune]string{
-		// Accented vowels -> base vowels
-		'á': "a", 'à': "a", 'â': "a", 'ã': "a", 'ä': "a", 'å': "a",
-		'é': "e", 'è': "e", 'ê': "e", 'ë': "e",
-		'í': "i", 'ì': "i", 'î': "i", 'ï': "i",
-		'ó': "o", 'ò': "o", 'ô': "o", 'õ': "o", 'ö': "o", 'ø': "o",
-		'ú': "u", 'ù': "u", 'û': "u", 'ü': "u",
-		'ý': "y", 'ỳ': "y", 'ŷ': "y", 'ÿ': "y",
+		// Basic accented vowels (non-Vietnamese and non-Germanic)
+		'â': "a",
+		'ê': "e", 'ë': "e",
+		'î': "i", 'ï': "i",
+		'ô': "o",
+		'û': "u",
+		'ŷ': "y", 'ÿ': "y",
 		
-		// Vietnamese diacritics
+		// Vietnamese diacritics - comprehensive mapping
 		'ă': "a", 'Ă': "A", 'đ': "d", 'Đ': "D",
 		'ư': "u", 'Ư': "U", 'ơ': "o", 'Ơ': "O",
-		'ạ': "a", 'ả': "a", 'ấ': "a", 'ầ': "a", 'ẩ': "a", 'ẫ': "a", 'ậ': "a",
-		'ắ': "a", 'ằ': "a", 'ẳ': "a", 'ẵ': "a", 'ặ': "a",
-		'ẹ': "e", 'ẻ': "e", 'ẽ': "e", 'ế': "e", 'ề': "e", 'ể': "e", 'ễ': "e", 'ệ': "e",
-		'ỉ': "i", 'ị': "i", 'ĩ': "i",
-		'ọ': "o", 'ỏ': "o", 'ố': "o", 'ồ': "o", 'ổ': "o", 'ỗ': "o", 'ộ': "o",
-		'ớ': "o", 'ờ': "o", 'ở': "o", 'ỡ': "o", 'ợ': "o",
-		'ụ': "u", 'ủ': "u", 'ũ': "u", 'ứ': "u", 'ừ': "u", 'ử': "u", 'ữ': "u", 'ự': "u",
-		'ỷ': "y", 'ỵ': "y", 'ỹ': "y",
+		
+		// Vietnamese tone marks on A
+		'à': "a", 'À': "A", 'á': "a", 'Á': "A", 'ả': "a", 'Ả': "A",
+		'ã': "a", 'Ã': "A", 'ạ': "a", 'Ạ': "A",
+		'ầ': "a", 'Ầ': "A", 'ấ': "a", 'Ấ': "A", 'ẩ': "a", 'Ẩ': "A",
+		'ẫ': "a", 'Ẫ': "A", 'ậ': "a", 'Ậ': "A",
+		'ằ': "a", 'Ằ': "A", 'ắ': "a", 'Ắ': "A", 'ẳ': "a", 'Ẳ': "A",
+		'ẵ': "a", 'Ẵ': "A", 'ặ': "a", 'Ặ': "A",
+		
+		// Vietnamese tone marks on E
+		'è': "e", 'È': "E", 'é': "e", 'É': "E", 'ẻ': "e", 'Ẻ': "E",
+		'ẽ': "e", 'Ẽ': "E", 'ẹ': "e", 'Ẹ': "E",
+		'ề': "e", 'Ề': "E", 'ế': "e", 'Ế': "E", 'ể': "e", 'Ể': "E",
+		'ễ': "e", 'Ễ': "E", 'ệ': "e", 'Ệ': "E",
+		
+		// Vietnamese tone marks on I
+		'ì': "i", 'Ì': "I", 'í': "i", 'Í': "I", 'ỉ': "i", 'Ỉ': "I",
+		'ĩ': "i", 'Ĩ': "I", 'ị': "i", 'Ị': "I",
+		
+		// Vietnamese tone marks on O
+		'ò': "o", 'Ò': "O", 'ó': "o", 'Ó': "O", 'ỏ': "o", 'Ỏ': "O",
+		'õ': "o", 'Õ': "O", 'ọ': "o", 'Ọ': "O",
+		'ồ': "o", 'Ồ': "O", 'ố': "o", 'Ố': "O", 'ổ': "o", 'Ổ': "O",
+		'ỗ': "o", 'Ỗ': "O", 'ộ': "o", 'Ộ': "O",
+		'ờ': "o", 'Ờ': "O", 'ớ': "o", 'Ớ': "O", 'ở': "o", 'Ở': "O",
+		'ỡ': "o", 'Ỡ': "O", 'ợ': "o", 'Ợ': "O",
+		
+		// Vietnamese tone marks on U
+		'ù': "u", 'Ù': "U", 'ú': "u", 'Ú': "U", 'ủ': "u", 'Ủ': "U",
+		'ũ': "u", 'Ũ': "U", 'ụ': "u", 'Ụ': "U",
+		'ừ': "u", 'Ừ': "U", 'ứ': "u", 'Ứ': "U", 'ử': "u", 'Ử': "U",
+		'ữ': "u", 'Ữ': "U", 'ự': "u", 'Ự': "U",
+		
+		// Vietnamese tone marks on Y
+		'ỳ': "y", 'Ỳ': "Y", 'ý': "y", 'Ý': "Y", 'ỷ': "y", 'Ỷ': "Y",
+		'ỹ': "y", 'Ỹ': "Y", 'ỵ': "y", 'Ỵ': "Y",
 		
 		// Other common characters
-		'ç': "c", 'ñ': "n", 'ß': "ss",
+		'ç': "c", 'Ç': "C", 'ñ': "n", 'Ñ': "N", 'ß': "ss",
+		
+		// German umlauts
+		'ä': "ae", 'Ä': "AE", 'ö': "oe", 'Ö': "OE", 'ü': "ue", 'Ü': "UE",
+		
+		// Scandinavian
+		'å': "aa", 'Å': "AA", 'ø': "oe", 'Ø': "OE", 'æ': "ae", 'Æ': "AE",
 	}
 	
 	if approx, exists := approximations[r]; exists {
 		return approx
 	}
 	
-	// Default fallback
-	return "?"
+	// Use unidecode for comprehensive Unicode to ASCII conversion
+	ascii := unidecode.Unidecode(string(r))
+	if ascii == "" {
+		// If unidecode returns empty, try to get the base character
+		return string(r)
+	}
+	return ascii
 }
 
 // Custom errors
