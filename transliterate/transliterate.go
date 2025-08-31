@@ -11,8 +11,15 @@ import (
 	"net/http"
 	"path/filepath"
 	"strings"
+	"time"
 	"unicode"
 	"unicode/utf8"
+
+	"encore.app/transliterate/internal/detection"
+	"encore.app/transliterate/internal/gender"
+	"encore.app/transliterate/internal/nameparser"
+	"encore.app/transliterate/internal/transliteration"
+	"encore.app/transliterate/internal/unicode"
 
 	"encore.dev/storage/sqldb"
 )
@@ -26,20 +33,10 @@ type TransliterationRequest struct {
 }
 
 // NameStructure represents parsed name components
-type NameStructure struct {
-	Family    string   `json:"family"`              // Family/surname in UPPERCASE
-	First     string   `json:"first"`               // Given/first name in Title Case
-	Middle    []string `json:"middle,omitempty"`    // Middle names/patronymics
-	Titles    []string `json:"titles,omitempty"`    // Extracted titles (Dr, Prof, etc)
-	FullASCII string   `json:"full_ascii"`          // Complete formatted ASCII name
-}
+type NameStructure = nameparser.NameStructure
 
 // GenderInference represents inferred gender with confidence
-type GenderInference struct {
-	Value      string  `json:"value"`      // M, F, or X (unknown/non-binary)
-	Confidence float64 `json:"confidence"` // 0.0 to 1.0
-	Source     string  `json:"source"`     // "cultural_marker", "statistical", "unknown"
-}
+type GenderInference = gender.Inference
 
 // TransliterationResponse represents the result of transliteration
 type TransliterationResponse struct {
@@ -67,18 +64,33 @@ type FeedbackRequest struct {
 //
 //encore:api public method=POST path=/transliterate
 func Transliterate(ctx context.Context, req *TransliterationRequest) (*TransliterationResponse, error) {
+	start := time.Now()
+	
 	// Validate input
 	if err := validateTransliterationRequest(req); err != nil {
 		return nil, fmt.Errorf("invalid request: %w", err)
 	}
 
+	// Initialize engines
+	transliterationEngine := transliteration.NewEngine(transliteration.DefaultConfig(), db)
+	nameParser := nameparser.NewParser(true, true) // preserveOriginal, strictCultural
+	genderEngine := gender.NewEngine(true, false)  // useStatistical, culturalOnly
+
 	// Detect input script if not provided
 	inputScript := req.InputScript
+	scriptInfo := detection.DetectScript(req.Text)
 	if inputScript == "" {
-		inputScript = detectScript(req.Text)
+		inputScript = scriptInfo.Script
 		if inputScript == "unknown" {
 			return nil, errors.New("unable to detect input script")
 		}
+	}
+
+	// Detect language for cultural context
+	languageHint := detection.DetectLanguage(req.Text, scriptInfo)
+	locale := req.InputLocale
+	if locale == nil && languageHint.Language != "unknown" {
+		locale = &languageHint.Language
 	}
 
 	// Validate script combination
@@ -91,10 +103,14 @@ func Transliterate(ctx context.Context, req *TransliterationRequest) (*Translite
 	if err == nil && cached != nil {
 		// Parse name structure and gender for cached results (they may not be stored)
 		if cached.Name == nil {
-			cached.Name = parseName(req.Text, cached.OutputText, inputScript)
+			culture := determineCulture(inputScript, languageHint.Language)
+			parsed := nameParser.ParseName(req.Text, cached.OutputText, culture, languageHint.Language)
+			cached.Name = parsed
 		}
 		if cached.Gender == nil {
-			cached.Gender = inferGender(req.Text, cached.OutputText, inputScript)
+			culture := determineCulture(inputScript, languageHint.Language)
+			inferred := genderEngine.InferGender(req.Text, cached.OutputText, culture, languageHint.Language)
+			cached.Gender = inferred
 		}
 
 		// Update usage count
@@ -109,23 +125,23 @@ func Transliterate(ctx context.Context, req *TransliterationRequest) (*Translite
 		return cached, nil
 	}
 
-	// Perform transliteration
-	outputText, err := performTransliterationWithValidation(req.Text, inputScript, req.OutputScript, req.InputLocale)
+	// Perform transliteration using the new engine
+	transliterationResult, err := transliterationEngine.Transliterate(ctx, req.Text, inputScript, req.OutputScript, languageHint.Language)
 	if err != nil {
 		return nil, fmt.Errorf("transliteration failed: %w", err)
 	}
 
-	// Calculate confidence score
-	confidenceScore := calculateConfidence(req.Text, outputText, inputScript, req.OutputScript)
-
+	outputText := transliterationResult.Output
+	
 	// Parse name structure from transliterated text
-	nameStructure := parseName(req.Text, outputText, inputScript)
+	culture := determineCulture(inputScript, languageHint.Language)
+	nameStructure := nameParser.ParseName(req.Text, outputText, culture, languageHint.Language)
 
 	// Infer gender from name and cultural markers
-	genderInference := inferGender(req.Text, outputText, inputScript)
+	genderInference := genderEngine.InferGender(req.Text, outputText, culture, languageHint.Language)
 
 	// Store the result
-	result, err := storeTransliteration(ctx, req.Text, outputText, inputScript, req.OutputScript, req.InputLocale, confidenceScore)
+	result, err := storeTransliteration(ctx, req.Text, outputText, inputScript, req.OutputScript, req.InputLocale, transliterationResult.Confidence)
 	if err != nil {
 		return nil, fmt.Errorf("failed to store transliteration: %w", err)
 	}
@@ -133,6 +149,17 @@ func Transliterate(ctx context.Context, req *TransliterationRequest) (*Translite
 	// Add structured name parsing and gender inference to response
 	result.Name = nameStructure
 	result.Gender = genderInference
+	
+	// Add processing notes
+	notes := make([]string, 0)
+	notes = append(notes, transliterationResult.Notes...)
+	notes = append(notes, fmt.Sprintf("Script detected: %s (%.2f confidence)", scriptInfo.Script, scriptInfo.Confidence))
+	if languageHint.Language != "unknown" {
+		notes = append(notes, fmt.Sprintf("Language detected: %s (%.2f confidence)", languageHint.Language, languageHint.Confidence))
+	}
+	notes = append(notes, fmt.Sprintf("Processing time: %v", time.Since(start)))
+	
+	result.AlternativeForms = notes
 
 	return result, nil
 }
@@ -166,8 +193,15 @@ func GetTransliteration(ctx context.Context, id string) (*TransliterationRespons
 	result.InputLocale = inputLocale
 
 	// Add name parsing and gender inference for retrieved records
-	result.Name = parseName(result.InputText, result.OutputText, result.InputScript)
-	result.Gender = inferGender(result.InputText, result.OutputText, result.InputScript)
+	nameParser := nameparser.NewParser(true, true)
+	genderEngine := gender.NewEngine(true, false)
+	
+	scriptInfo := detection.DetectScript(result.InputText)
+	languageHint := detection.DetectLanguage(result.InputText, scriptInfo)
+	culture := determineCulture(result.InputScript, languageHint.Language)
+	
+	result.Name = nameParser.ParseName(result.InputText, result.OutputText, culture, languageHint.Language)
+	result.Gender = genderEngine.InferGender(result.InputText, result.OutputText, culture, languageHint.Language)
 
 	return &result, nil
 }
@@ -198,6 +232,30 @@ func SubmitFeedback(ctx context.Context, id string, req *FeedbackRequest) error 
 	}
 
 	return nil
+}
+
+// determineCulture maps script and language to cultural context
+func determineCulture(script, language string) string {
+	switch {
+	case language == "vi" || script == "vietnamese":
+		return "vietnamese"
+	case language == "zh" || language == "zh-CN" || language == "zh-TW" || script == "chinese":
+		return "chinese"
+	case language == "ja" || script == "japanese":
+		return "japanese"
+	case language == "ko" || script == "korean":
+		return "korean"
+	case language == "ar" || script == "arabic":
+		return "arabic"
+	case language == "th" || script == "thai":
+		return "thai"
+	case strings.Contains(language, "id") || strings.Contains(language, "ms"):
+		return "indonesian"
+	case language == "hi" || language == "ta" || language == "te":
+		return "indian"
+	default:
+		return "western"
+	}
 }
 
 // Helper functions
@@ -248,154 +306,8 @@ func storeTransliteration(ctx context.Context, inputText, outputText, inputScrip
 	}, nil
 }
 
-// detectScript attempts to identify the script of the input text
-func detectScript(text string) string {
-	if text == "" {
-		return "unknown"
-	}
 
-	// Count characters by script
-	scriptCounts := make(map[string]int)
-	totalChars := 0
 
-	for _, r := range text {
-		if unicode.IsLetter(r) {
-			totalChars++
-			switch {
-			case r >= 0x0400 && r <= 0x04FF: // Cyrillic
-				scriptCounts["cyrillic"]++
-			case r >= 0x4E00 && r <= 0x9FFF: // CJK Ideographs
-				scriptCounts["chinese"]++
-			case r >= 0x3040 && r <= 0x309F: // Hiragana
-				scriptCounts["japanese"]++
-			case r >= 0x30A0 && r <= 0x30FF: // Katakana
-				scriptCounts["japanese"]++
-			case r >= 0x0600 && r <= 0x06FF: // Arabic
-				scriptCounts["arabic"]++
-			case r >= 0x0370 && r <= 0x03FF: // Greek
-				scriptCounts["greek"]++
-			case (r >= 0x0041 && r <= 0x005A) || (r >= 0x0061 && r <= 0x007A): // Basic Latin
-				scriptCounts["latin"]++
-			case r >= 0x0080 && r <= 0x024F: // Extended Latin
-				scriptCounts["latin"]++
-			default:
-				scriptCounts["unknown"]++
-			}
-		}
-	}
-
-	if totalChars == 0 {
-		return "unknown"
-	}
-
-	// Find the most common script (needs >50% confidence)
-	maxScript := "unknown"
-	maxCount := 0
-	for script, count := range scriptCounts {
-		if count > maxCount && float64(count)/float64(totalChars) > 0.5 {
-			maxScript = script
-			maxCount = count
-		}
-	}
-
-	if maxScript == "unknown" && scriptCounts["latin"] > 0 {
-		return "latin" // Default to latin if some latin chars found
-	}
-
-	return maxScript
-}
-
-// performTransliteration converts text using character mappings and fallback rules
-func performTransliteration(text, inputScript, outputScript string, inputLocale *string) string {
-	result := strings.Builder{}
-
-	// Process text character by character
-	for _, r := range text {
-		sourceChar := string(r)
-
-		// First try database lookup
-		mapped := getCharacterMapping(sourceChar, inputScript, outputScript, inputLocale)
-		if mapped != "" {
-			result.WriteString(mapped)
-			continue
-		}
-
-		// Apply built-in transliteration rules
-		builtinMapped := applyBuiltinRules(r, inputScript, outputScript)
-		if builtinMapped != "" {
-			result.WriteString(builtinMapped)
-			continue
-		}
-
-		// Fallback: ASCII approximation or keep original
-		if outputScript == "ascii" {
-			asciiApprox := approximateToASCII(r)
-			result.WriteString(asciiApprox)
-		} else {
-			result.WriteRune(r)
-		}
-	}
-
-	return result.String()
-}
-
-// getCharacterMapping retrieves character mapping from database
-func getCharacterMapping(sourceChar, sourceScript, targetScript string, locale *string) string {
-	var targetChar string
-
-	// Query character mappings table for exact match
-	err := db.QueryRow(context.Background(), `
-		SELECT target_char
-		FROM character_mappings
-		WHERE source_char = $1
-			AND source_script = $2
-			AND target_script = $3
-			AND ($4::text IS NULL OR locale = $4 OR locale IS NULL)
-		ORDER BY
-			CASE WHEN locale = $4 THEN 1 ELSE 2 END,
-			frequency_weight DESC
-		LIMIT 1
-	`, sourceChar, sourceScript, targetScript, locale).Scan(&targetChar)
-
-	if err == sql.ErrNoRows {
-		return "" // No mapping found
-	}
-	if err != nil {
-		// Log error but don't fail transliteration
-		return ""
-	}
-
-	return targetChar
-}
-
-// calculateConfidence computes a confidence score based on multiple factors
-func calculateConfidence(inputText, outputText, inputScript, outputScript string) float64 {
-	baseConfidence := 0.50 // Conservative baseline
-
-	// Script compatibility scoring
-	scriptBonus := calculateScriptCompatibility(inputScript, outputScript)
-	baseConfidence += scriptBonus
-
-	// Character coverage scoring
-	coverageBonus := calculateCharacterCoverage(inputText, outputText)
-	baseConfidence += coverageBonus
-
-	// Length preservation bonus
-	lengthRatio := float64(len(outputText)) / float64(len(inputText))
-	if lengthRatio >= 0.5 && lengthRatio <= 2.0 {
-		baseConfidence += 0.1 // Reasonable length preservation
-	}
-
-	// Ensure confidence stays within bounds
-	if baseConfidence > 1.0 {
-		baseConfidence = 1.0
-	}
-	if baseConfidence < 0.1 {
-		baseConfidence = 0.1
-	}
-
-	return baseConfidence
-}
 
 // applyBuiltinRules applies hardcoded transliteration rules for common cases
 func applyBuiltinRules(r rune, inputScript, outputScript string) string {

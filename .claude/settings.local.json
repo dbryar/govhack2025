@@ -22,7 +22,8 @@
       "Read(/Users/daniel.bryar/nexus/**)",
       "Bash(go build:*)",
       "Bash(go test:*)",
-      "Bash(go run:*)"
+      "Bash(go run:*)",
+      "Bash(go get:*)"
     ],
     "deny": [],
     "ask": []

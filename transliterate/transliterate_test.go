@@ -11,6 +11,150 @@ import (
 // You automatically get tracing for tests in the local dev dash: http://localhost:9400
 // Learn more: https://encore.dev/docs/go/develop/testing
 
+// TestCases contains the five key test cases from idea.md
+func TestTransliterateKeyExamples(t *testing.T) {
+	ctx := context.Background()
+	
+	tests := []struct {
+		name           string
+		input          string
+		expectedFamily string
+		expectedFirst  string
+		expectedMiddle []string
+		expectedTitle  string
+		expectedGender string
+		outputScript   string
+		inputScript    string
+		locale         *string
+	}{
+		{
+			name:           "Vietnamese Doctor Name",
+			input:          "Doctor Nguyễn Văn Minh",
+			expectedFamily: "NGUYEN",
+			expectedFirst:  "Minh",
+			expectedMiddle: []string{"Van"},
+			expectedTitle:  "Dr",
+			expectedGender: "M",
+			outputScript:   "ascii",
+			inputScript:    "",
+			locale:         nil,
+		},
+		{
+			name:           "German Professor Name",
+			input:          "Prof. Jürgen Groß",
+			expectedFamily: "GROSS",
+			expectedFirst:  "Jurgen",
+			expectedMiddle: []string{},
+			expectedTitle:  "Prof",
+			expectedGender: "M",
+			outputScript:   "ascii",
+			inputScript:    "",
+			locale:         nil,
+		},
+		{
+			name:           "Chinese Name Traditional",
+			input:          "李小龍",
+			expectedFamily: "LI",
+			expectedFirst:  "Long",
+			expectedMiddle: []string{"Xiao"},
+			expectedTitle:  "",
+			expectedGender: "M",
+			outputScript:   "ascii",
+			inputScript:    "",
+			locale:         stringPtr("zh"),
+		},
+		{
+			name:           "Japanese Name with Honorific",
+			input:          "Tanaka-san Yoko",
+			expectedFamily: "TANAKA",
+			expectedFirst:  "Yoko",
+			expectedMiddle: []string{},
+			expectedTitle:  "",
+			expectedGender: "F",
+			outputScript:   "ascii",
+			inputScript:    "",
+			locale:         stringPtr("ja"),
+		},
+		{
+			name:           "Spanish Name with Particles",
+			input:          "Maria del Carmen Núñez",
+			expectedFamily: "NUNEZ",
+			expectedFirst:  "Maria",
+			expectedMiddle: []string{"del", "Carmen"},
+			expectedTitle:  "",
+			expectedGender: "F",
+			outputScript:   "ascii",
+			inputScript:    "",
+			locale:         stringPtr("es"),
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			req := &TransliterationRequest{
+				Text:         tt.input,
+				InputScript:  tt.inputScript,
+				OutputScript: tt.outputScript,
+				InputLocale:  tt.locale,
+			}
+
+			result, err := Transliterate(ctx, req)
+			if err != nil {
+				t.Fatalf("Transliterate() error = %v", err)
+			}
+
+			// Check basic transliteration
+			if result.OutputText == "" {
+				t.Error("OutputText should not be empty")
+			}
+
+			// Check name structure
+			if result.Name == nil {
+				t.Fatal("Name structure should not be nil")
+			}
+
+			if result.Name.Family != tt.expectedFamily {
+				t.Errorf("Family = %q, expected %q", result.Name.Family, tt.expectedFamily)
+			}
+
+			if result.Name.First != tt.expectedFirst {
+				t.Errorf("First = %q, expected %q", result.Name.First, tt.expectedFirst)
+			}
+
+			if len(result.Name.Middle) != len(tt.expectedMiddle) {
+				t.Errorf("Middle length = %d, expected %d", len(result.Name.Middle), len(tt.expectedMiddle))
+			} else {
+				for i, expected := range tt.expectedMiddle {
+					if i < len(result.Name.Middle) && result.Name.Middle[i] != expected {
+						t.Errorf("Middle[%d] = %q, expected %q", i, result.Name.Middle[i], expected)
+					}
+				}
+			}
+
+			// Check titles (if present)
+			if tt.expectedTitle != "" {
+				if len(result.Name.Titles) == 0 || result.Name.Titles[0] != tt.expectedTitle {
+					t.Errorf("Expected title %q, got %v", tt.expectedTitle, result.Name.Titles)
+				}
+			}
+
+			// Check gender inference
+			if result.Gender == nil {
+				t.Fatal("Gender inference should not be nil")
+			}
+
+			if result.Gender.Value != tt.expectedGender {
+				t.Errorf("Gender = %q, expected %q (confidence: %f, reason: %q)",
+					result.Gender.Value, tt.expectedGender, result.Gender.Confidence, result.Gender.Reason)
+			}
+
+			t.Logf("Result: %+v", result)
+			t.Logf("Name: %+v", result.Name)
+			t.Logf("Gender: %+v", result.Gender)
+		})
+	}
+}
+
 // TestTransliterateAndRetrieve tests that transliteration is performed and stored correctly
 func TestTransliterateAndRetrieve(t *testing.T) {
 	testText := "Привет"
@@ -742,4 +886,9 @@ func TestAutoScriptDetection(t *testing.T) {
 	if !strings.Contains(resp.OutputText, "Privet") {
 		t.Errorf("expected transliteration to contain 'Privet', got %q", resp.OutputText)
 	}
+}
+
+// Helper functions
+func stringPtr(s string) *string {
+	return &s
 }
