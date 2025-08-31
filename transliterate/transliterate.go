@@ -19,7 +19,6 @@ import (
 	"encore.app/transliterate/internal/gender"
 	"encore.app/transliterate/internal/nameparser"
 	"encore.app/transliterate/internal/transliteration"
-	"encore.app/transliterate/internal/unicode"
 
 	"encore.dev/storage/sqldb"
 )
@@ -645,6 +644,7 @@ func isSupportedScriptPair(inputScript, outputScript string) bool {
 		"arabic":     {"latin": true, "ascii": true},
 		"greek":      {"latin": true, "ascii": true},
 		"vietnamese": {"latin": true, "ascii": true},
+		"german":     {"latin": true, "ascii": true},
 		"indonesian": {"latin": true, "ascii": true},
 		"malayalam":  {"latin": true, "ascii": true},
 	}
@@ -721,24 +721,36 @@ func isValidLocale(locale string) bool {
 	return true
 }
 
-// performTransliterationWithValidation wraps performTransliteration with error handling
+// performTransliterationWithValidation wraps transliteration with error handling
 func performTransliterationWithValidation(text, inputScript, outputScript string, inputLocale *string) (string, error) {
 	if text == "" {
 		return "", errors.New("empty input text")
 	}
 
-	result := performTransliteration(text, inputScript, outputScript, inputLocale)
+	// Use the new transliteration engine
+	engine := transliteration.NewEngine(transliteration.DefaultConfig(), db)
+	ctx := context.Background()
+	
+	locale := ""
+	if inputLocale != nil {
+		locale = *inputLocale
+	}
+	
+	result, err := engine.Transliterate(ctx, text, inputScript, outputScript, locale)
+	if err != nil {
+		return "", err
+	}
 
 	// Validate output
-	if result == "" {
+	if result.Output == "" {
 		return "", errors.New("transliteration produced empty result")
 	}
 
-	if !utf8.ValidString(result) {
+	if !utf8.ValidString(result.Output) {
 		return "", errors.New("transliteration produced invalid UTF-8")
 	}
 
-	return result, nil
+	return result.Output, nil
 }
 
 // parseName extracts structured name components from transliterated text

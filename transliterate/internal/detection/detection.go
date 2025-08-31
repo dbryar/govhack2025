@@ -43,13 +43,24 @@ func DetectScript(text string) ScriptInfo {
 		return ScriptInfo{Script: "unknown", Confidence: 0.0, Details: scriptCounts}
 	}
 
-	// Find the dominant script
+	// Find the dominant script, prioritizing specific language variants
 	maxScript := "unknown"
 	maxCount := 0
-	for script, count := range scriptCounts {
-		if count > maxCount {
-			maxScript = script
-			maxCount = count
+	
+	// Check for Vietnamese first (it's more specific than general latin)
+	if scriptCounts["vietnamese"] > 0 {
+		maxScript = "vietnamese"
+		maxCount = scriptCounts["vietnamese"]
+	} else if scriptCounts["german"] > 0 {
+		maxScript = "german"
+		maxCount = scriptCounts["german"]
+	} else {
+		// Fall back to highest count
+		for script, count := range scriptCounts {
+			if count > maxCount {
+				maxScript = script
+				maxCount = count
+			}
 		}
 	}
 

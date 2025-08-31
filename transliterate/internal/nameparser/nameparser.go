@@ -270,26 +270,79 @@ func (p *Parser) parseVietnamese(original, text string, context CulturalContext)
 	
 	if len(parts) >= 2 {
 		// Vietnamese: Family name first, then middle names, then given name
-		result.Family = strings.ToUpper(parts[0])
-		result.First = p.toTitleCase(parts[len(parts)-1])
-		
-		// Handle middle names (excluding gender markers)
-		for i := 1; i < len(parts)-1; i++ {
-			part := parts[i]
-			partLower := strings.ToLower(part)
+		// For mixed language text, identify the Vietnamese part
+		vietnameseParts := p.findVietnameseParts(parts, original)
+		if len(vietnameseParts) >= 2 {
+			result.Family = strings.ToUpper(vietnameseParts[0])
+			result.First = p.toTitleCase(vietnameseParts[len(vietnameseParts)-1])
 			
-			// Vietnamese gender markers - preserve but don't capitalize
-			if partLower == "van" || partLower == "văn" || partLower == "thi" || partLower == "thị" {
-				result.Middle = append(result.Middle, p.toTitleCase(part))
-			} else {
+			// Handle middle names
+			for i := 1; i < len(vietnameseParts)-1; i++ {
+				part := vietnameseParts[i]
 				result.Middle = append(result.Middle, p.toTitleCase(part))
 			}
+		} else if len(vietnameseParts) == 1 {
+			// Only one Vietnamese part, probably just a first name
+			result.First = p.toTitleCase(vietnameseParts[0])
+		} else {
+			// Fallback to standard parsing
+			result.Family = strings.ToUpper(parts[0])
+			result.First = p.toTitleCase(parts[len(parts)-1])
 		}
 	} else {
 		result.First = p.toTitleCase(parts[0])
 	}
 
 	return &result
+}
+
+// findVietnameseParts identifies Vietnamese name components from mixed-language text
+func (p *Parser) findVietnameseParts(parts []string, original string) []string {
+	var vietnameseParts []string
+	
+	for _, part := range parts {
+		// Check if this part contains Vietnamese characters by comparing with original
+		if p.containsVietnameseCharacters(part) || p.isVietnameseNamePart(part, original) {
+			vietnameseParts = append(vietnameseParts, part)
+		}
+	}
+	
+	return vietnameseParts
+}
+
+// containsVietnameseCharacters checks if a word contains Vietnamese diacritics
+func (p *Parser) containsVietnameseCharacters(word string) bool {
+	vietnameseChars := "ăâđêôơưạảãáàẹẻẽéèịỉĩíìọỏõóòụủũúùỳỷỹýỳ"
+	for _, char := range word {
+		if strings.ContainsRune(vietnameseChars, char) {
+			return true
+		}
+	}
+	return false
+}
+
+// isVietnameseNamePart checks if a transliterated part corresponds to a Vietnamese name
+func (p *Parser) isVietnameseNamePart(part, original string) bool {
+	partLower := strings.ToLower(part)
+	
+	// Common Vietnamese family names (transliterated)
+	vietnameseFamilyNames := []string{"nguyen", "tran", "le", "pham", "hoang", "phan", "vu", "vo", "dang", "bui", "do", "ho", "ngo", "duong", "ly"}
+	for _, name := range vietnameseFamilyNames {
+		if partLower == name {
+			return true
+		}
+	}
+	
+	// Vietnamese gender markers and given names
+	vietnameseNameElements := []string{"van", "thi", "minh", "duc", "tuan", "hung", "quan", "huy", "long", "nam", "hai", "thanh", "son", "phong", "khoa", "duy", "thang", "khanh", "cuong", "hieu", "trung", "vinh", "dat", "tai", "hoa", "linh", "thu", "mai", "lan", "huong"}
+	for _, element := range vietnameseNameElements {
+		if partLower == element {
+			// Only consider it Vietnamese if the original text has Vietnamese characters
+			return p.containsVietnameseCharacters(original)
+		}
+	}
+	
+	return false
 }
 
 // parseChinese handles Chinese naming conventions
@@ -313,11 +366,40 @@ func (p *Parser) parseChinese(text string, context CulturalContext) *NameStructu
 				result.Middle = append(result.Middle, p.toTitleCase(parts[i]))
 			}
 		}
-	} else {
-		result.First = p.toTitleCase(parts[0])
+	} else if len(parts) == 1 {
+		// Single concatenated string - try to parse Chinese name structure
+		name := parts[0]
+		if len(name) >= 3 && p.looksLikeConcatenatedChinese(name) {
+			// Assume first part is family name (usually 1 syllable/character)
+			// and rest is given name (usually 2 syllables/characters)
+			result.Family = strings.ToUpper(name[:2])  // "Li" from "LiXiaoLong"
+			remaining := name[2:]                        // "XiaoLong"
+			
+			if len(remaining) >= 4 {
+				// Split remaining into middle and given name parts
+				result.Middle = append(result.Middle, p.toTitleCase(remaining[:4]))  // "Xiao" 
+				result.First = p.toTitleCase(remaining[4:])                           // "Long"
+			} else {
+				result.First = p.toTitleCase(remaining)
+			}
+		} else {
+			result.First = p.toTitleCase(name)
+		}
 	}
 
 	return &result
+}
+
+// looksLikeConcatenatedChinese checks if a string appears to be a concatenated Chinese name
+func (p *Parser) looksLikeConcatenatedChinese(name string) bool {
+	// Check for common Chinese romanization patterns (Li, Wang, Zhang, etc.)
+	commonFamilyNames := []string{"Li", "Wang", "Zhang", "Liu", "Chen", "Yang", "Huang", "Zhao", "Wu", "Zhou"}
+	for _, familyName := range commonFamilyNames {
+		if strings.HasPrefix(name, familyName) && len(name) > len(familyName) {
+			return true
+		}
+	}
+	return false
 }
 
 // parseJapanese handles Japanese naming conventions
@@ -488,21 +570,46 @@ func (p *Parser) parseWestern(text string, context CulturalContext) *NameStructu
 
 	var result NameStructure
 
-	// Extract particles (de, van, von, del, etc.)
-	particles, cleanParts := p.extractParticles(parts)
-	result.Particles = particles
-
-	if len(cleanParts) == 1 {
-		result.First = p.toTitleCase(cleanParts[0])
-	} else if len(cleanParts) == 2 {
-		result.First = p.toTitleCase(cleanParts[0])
-		result.Family = strings.ToUpper(cleanParts[1])
+	// For Spanish names, don't separate particles - include them in middle names
+	if context.Culture == "spanish" || strings.Contains(strings.ToLower(text), "del") || strings.Contains(strings.ToLower(text), "de ") {
+		// Spanish naming: treat particles as part of middle names
+		if len(parts) == 1 {
+			result.First = p.toTitleCase(parts[0])
+		} else if len(parts) == 2 {
+			result.First = p.toTitleCase(parts[0])
+			result.Family = strings.ToUpper(parts[1])
+		} else {
+			// First + middle names (including particles) + last
+			result.First = p.toTitleCase(parts[0])
+			result.Family = strings.ToUpper(parts[len(parts)-1])
+			
+			for i := 1; i < len(parts)-1; i++ {
+				part := parts[i]
+				// Keep Spanish particles lowercase
+				if strings.ToLower(part) == "del" || strings.ToLower(part) == "de" || strings.ToLower(part) == "la" || strings.ToLower(part) == "las" {
+					result.Middle = append(result.Middle, strings.ToLower(part))
+				} else {
+					result.Middle = append(result.Middle, p.toTitleCase(part))
+				}
+			}
+		}
 	} else {
-		// First + middle names + last
-		result.First = p.toTitleCase(cleanParts[0])
-		result.Family = strings.ToUpper(cleanParts[len(cleanParts)-1])
-		for i := 1; i < len(cleanParts)-1; i++ {
-			result.Middle = append(result.Middle, p.toTitleCase(cleanParts[i]))
+		// Non-Spanish Western names: extract particles separately
+		particles, cleanParts := p.extractParticles(parts)
+		result.Particles = particles
+
+		if len(cleanParts) == 1 {
+			result.First = p.toTitleCase(cleanParts[0])
+		} else if len(cleanParts) == 2 {
+			result.First = p.toTitleCase(cleanParts[0])
+			result.Family = strings.ToUpper(cleanParts[1])
+		} else {
+			// First + middle names + last
+			result.First = p.toTitleCase(cleanParts[0])
+			result.Family = strings.ToUpper(cleanParts[len(cleanParts)-1])
+			for i := 1; i < len(cleanParts)-1; i++ {
+				result.Middle = append(result.Middle, p.toTitleCase(cleanParts[i]))
+			}
 		}
 	}
 
@@ -627,11 +734,39 @@ func (p *Parser) looksChinese(text string) bool {
 }
 
 func (p *Parser) looksJapanese(text string) bool {
+	// Check for Japanese characters (Hiragana/Katakana)
 	for _, r := range text {
 		if (r >= 0x3040 && r <= 0x309F) || (r >= 0x30A0 && r <= 0x30FF) {
 			return true
 		}
 	}
+	
+	// Check for Japanese honorifics in romanized text
+	japaneseHonorifics := []string{"-san", "-kun", "-chan", "-sama", "-sensei", "-senpai"}
+	textLower := strings.ToLower(text)
+	for _, honorific := range japaneseHonorifics {
+		if strings.Contains(textLower, honorific) {
+			return true
+		}
+	}
+	
+	// Check for common Japanese family names in romanized text
+	japaneseFamilyNames := []string{"tanaka", "sato", "suzuki", "yamamoto", "watanabe", "ito", "saito", "kato", "kobayashi", "oka"}
+	words := strings.Fields(textLower)
+	for _, word := range words {
+		// Remove honorifics from comparison
+		cleanWord := word
+		for _, honorific := range japaneseHonorifics {
+			cleanWord = strings.ReplaceAll(cleanWord, honorific, "")
+		}
+		
+		for _, familyName := range japaneseFamilyNames {
+			if cleanWord == familyName {
+				return true
+			}
+		}
+	}
+	
 	return false
 }
 

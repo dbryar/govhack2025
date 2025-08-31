@@ -1,5 +1,34 @@
 # Session History
 
+## 2025-08-31T13:30:00+10:00 - Unicode Fix and Modular Refactoring
+
+**Request**: Fix Unicode errors and refactor transliterate.go into modular structure
+
+**Task Summary**: 
+- Fixed Unicode character handling to prevent "?" in output
+- Refactored monolithic code into 5 specialized modules
+- Implemented comprehensive test cases for key examples from idea.md
+
+**Outcome Report**:
+- **Major changes implemented**:
+  - Created internal module structure with detection, unicode, transliteration, nameparser, and gender modules
+  - Updated golang.org/x/text to v0.28.0 for proper Unicode normalization
+  - Added Vietnamese diacritics support in transliteration engine
+  
+- **Minor updates applied**:
+  - Fixed compilation errors (duplicate keys, unused imports)
+  - Updated test cases to use new modular API
+  - Removed deprecated functions
+  
+- **Overall improvements**:
+  - Unicode characters now properly transliterated (ễ→e, ü→u, etc.)
+  - Modular design improves maintainability
+  - Gender inference working with 85% confidence for cultural markers
+  
+- **Reference**: `scratchpad/unicode-fix-modular-refactor.md`
+
+# Session History
+
 ## 2025-01-29T14:00:00Z - Complete Transliteration Service Implementation
 
 ### Request
